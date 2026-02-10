@@ -221,6 +221,7 @@ export const refreshToken = async (req, res) => {
 // Get current user profile
 export const getProfile = async (req, res) => {
   try {
+    // Get user from database using _id from JWT token
     const user = await User.findById(req.user._id);
 
     if (!user || !user.isActive) {
@@ -233,11 +234,26 @@ export const getProfile = async (req, res) => {
     // Get user permissions
     const permissions = user.getPermissions();
 
-    res.json({
+    res.status(200).json({
       success: true,
       data: {
-        user,
-        permissions,
+        user: {
+          _id: user._id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          role: user.role,
+          department: user.department,
+          phone: user.phone,
+          isActive: user.isActive,
+          permissions: user.permissions,
+          profile: user.profile,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
+          fullName: user.fullName,
+          timeSinceLastLogin: user.timeSinceLastLogin,
+          id: user._id,
+        },
       },
     });
   } catch (error) {
@@ -252,7 +268,7 @@ export const getProfile = async (req, res) => {
 // Update user profile
 export const updateProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
+    const user = await User.findById(req.user.userId);
 
     if (!user || !user.isActive) {
       return res.status(401).json({
@@ -283,7 +299,7 @@ export const updateProfile = async (req, res) => {
 // Change password
 export const changePassword = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).select("+password");
+    const user = await User.findById(req.user.userId).select("+password");
 
     if (!user || !user.isActive) {
       return res.status(401).json({

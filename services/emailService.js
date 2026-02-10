@@ -1,15 +1,15 @@
-import nodemailer from 'nodemailer';
+import nodemailer from "nodemailer";
 
 // Create email transporter
 const createTransporter = () => {
-  return nodemailer.createTransporter({
-    host: process.env.EMAIL_HOST || 'smtp.gmail.com',
+  return nodemailer.createTransport({
+    host: process.env.EMAIL_HOST || "smtp.gmail.com",
     port: process.env.EMAIL_PORT || 587,
     secure: false, // true for 465, false for other ports
     auth: {
       user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS
-    }
+      pass: process.env.EMAIL_PASS,
+    },
   });
 };
 
@@ -17,7 +17,7 @@ const createTransporter = () => {
 export const sendContactEmail = async (contact) => {
   try {
     const transporter = createTransporter();
-    
+
     const mailOptions = {
       from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
       to: process.env.EMAIL_USER, // Send to admin
@@ -34,7 +34,7 @@ export const sendContactEmail = async (contact) => {
             <div style="background: white; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
               <p><strong>Name:</strong> ${contact.name}</p>
               <p><strong>Email:</strong> ${contact.email}</p>
-              ${contact.phone ? `<p><strong>Phone:</strong> ${contact.phone}</p>` : ''}
+              ${contact.phone ? `<p><strong>Phone:</strong> ${contact.phone}</p>` : ""}
               <p><strong>Subject:</strong> ${contact.subject}</p>
               <p><strong>Category:</strong> ${contact.category}</p>
               <p><strong>Priority:</strong> ${contact.priority}</p>
@@ -52,13 +52,13 @@ export const sendContactEmail = async (contact) => {
             <p style="margin: 5px 0 0 0;">Please respond to the inquiry at your earliest convenience.</p>
           </div>
         </div>
-      `
+      `,
     };
 
     await transporter.sendMail(mailOptions);
-    console.log('Contact email sent successfully');
+    console.log("Contact email sent successfully");
   } catch (error) {
-    console.error('Error sending contact email:', error);
+    console.error("Error sending contact email:", error);
     throw error;
   }
 };
@@ -67,12 +67,12 @@ export const sendContactEmail = async (contact) => {
 export const sendApplicationEmail = async (application) => {
   try {
     const transporter = createTransporter();
-    
+
     // Send to applicant
     const applicantMailOptions = {
       from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
       to: application.email,
-      subject: 'Application Received - Maplorix',
+      subject: "Application Received - Maplorix",
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <div style="background: #023341; color: white; padding: 20px; text-align: center;">
@@ -110,7 +110,7 @@ export const sendApplicationEmail = async (application) => {
             <p style="margin: 5px 0 0 0;">The Maplorix Team</p>
           </div>
         </div>
-      `
+      `,
     };
 
     // Send notification to admin
@@ -134,47 +134,58 @@ export const sendApplicationEmail = async (application) => {
               <p><strong>Location:</strong> ${application.location}</p>
               <p><strong>Applied Position:</strong> ${application.jobRole}</p>
               <p><strong>Experience:</strong> ${application.experience}</p>
-              ${application.skills ? `<p><strong>Skills:</strong> ${application.skills}</p>` : ''}
-              ${application.currentCompany ? `<p><strong>Current Company:</strong> ${application.currentCompany}</p>` : ''}
-              ${application.expectedSalary.min || application.expectedSalary.max ? 
-                `<p><strong>Expected Salary:</strong> ${application.formattedExpectedSalary}</p>` : ''}
+              ${application.skills ? `<p><strong>Skills:</strong> ${application.skills}</p>` : ""}
+              ${application.currentCompany ? `<p><strong>Current Company:</strong> ${application.currentCompany}</p>` : ""}
+              ${
+                application.expectedSalary.min || application.expectedSalary.max
+                  ? `<p><strong>Expected Salary:</strong> ${application.formattedExpectedSalary}</p>`
+                  : ""
+              }
               <p><strong>Notice Period:</strong> ${application.noticePeriod}</p>
               <p><strong>Applied:</strong> ${application.createdAt.toLocaleString()}</p>
               <p><strong>Resume:</strong> ${application.resume.originalName} (${(application.resume.size / 1024 / 1024).toFixed(2)} MB)</p>
             </div>
             
-            ${application.coverLetter ? `
+            ${
+              application.coverLetter
+                ? `
               <div style="background: white; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
                 <h3 style="color: #023341; margin-bottom: 10px;">Cover Letter:</h3>
                 <p style="white-space: pre-wrap;">${application.coverLetter}</p>
               </div>
-            ` : ''}
+            `
+                : ""
+            }
             
-            ${application.linkedinProfile || application.portfolio ? `
+            ${
+              application.linkedinProfile || application.portfolio
+                ? `
               <div style="background: white; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
                 <h3 style="color: #023341; margin-bottom: 10px;">Additional Links:</h3>
-                ${application.linkedinProfile ? `<p><strong>LinkedIn:</strong> <a href="${application.linkedinProfile}">${application.linkedinProfile}</a></p>` : ''}
-                ${application.portfolio ? `<p><strong>Portfolio:</strong> <a href="${application.portfolio}">${application.portfolio}</a></p>` : ''}
+                ${application.linkedinProfile ? `<p><strong>LinkedIn:</strong> <a href="${application.linkedinProfile}">${application.linkedinProfile}</a></p>` : ""}
+                ${application.portfolio ? `<p><strong>Portfolio:</strong> <a href="${application.portfolio}">${application.portfolio}</a></p>` : ""}
               </div>
-            ` : ''}
+            `
+                : ""
+            }
           </div>
           
           <div style="background: #4CBD99; color: white; padding: 15px; text-align: center;">
             <p style="margin: 0;">Please review this application in the admin panel</p>
           </div>
         </div>
-      `
+      `,
     };
 
     // Send both emails
     await Promise.all([
       transporter.sendMail(applicantMailOptions),
-      transporter.sendMail(adminMailOptions)
+      transporter.sendMail(adminMailOptions),
     ]);
-    
-    console.log('Application emails sent successfully');
+
+    console.log("Application emails sent successfully");
   } catch (error) {
-    console.error('Error sending application emails:', error);
+    console.error("Error sending application emails:", error);
     throw error;
   }
 };
@@ -183,7 +194,7 @@ export const sendApplicationEmail = async (application) => {
 export const sendInterviewEmail = async (application, interviewDetails) => {
   try {
     const transporter = createTransporter();
-    
+
     const mailOptions = {
       from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
       to: application.email,
@@ -204,16 +215,20 @@ export const sendInterviewEmail = async (application, interviewDetails) => {
               <p><strong>Date:</strong> ${new Date(interviewDetails.date).toLocaleDateString()}</p>
               <p><strong>Time:</strong> ${new Date(interviewDetails.date).toLocaleTimeString()}</p>
               <p><strong>Type:</strong> ${interviewDetails.type}</p>
-              ${interviewDetails.location ? `<p><strong>Location:</strong> ${interviewDetails.location}</p>` : ''}
-              ${interviewDetails.meetingLink ? `<p><strong>Meeting Link:</strong> <a href="${interviewDetails.meetingLink}">${interviewDetails.meetingLink}</a></p>` : ''}
+              ${interviewDetails.location ? `<p><strong>Location:</strong> ${interviewDetails.location}</p>` : ""}
+              ${interviewDetails.meetingLink ? `<p><strong>Meeting Link:</strong> <a href="${interviewDetails.meetingLink}">${interviewDetails.meetingLink}</a></p>` : ""}
             </div>
             
-            ${interviewDetails.notes ? `
+            ${
+              interviewDetails.notes
+                ? `
               <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0;">
                 <h3 style="color: #023341; margin-bottom: 10px;">Additional Information:</h3>
                 <p>${interviewDetails.notes}</p>
               </div>
-            ` : ''}
+            `
+                : ""
+            }
             
             <p>Please confirm your availability by replying to this email within 24 hours.</p>
             
@@ -225,13 +240,13 @@ export const sendInterviewEmail = async (application, interviewDetails) => {
             <p style="margin: 5px 0 0 0;">The Maplorix Team</p>
           </div>
         </div>
-      `
+      `,
     };
 
     await transporter.sendMail(mailOptions);
-    console.log('Interview invitation email sent successfully');
+    console.log("Interview invitation email sent successfully");
   } catch (error) {
-    console.error('Error sending interview email:', error);
+    console.error("Error sending interview email:", error);
     throw error;
   }
 };
@@ -239,5 +254,5 @@ export const sendInterviewEmail = async (application, interviewDetails) => {
 export default {
   sendContactEmail,
   sendApplicationEmail,
-  sendInterviewEmail
+  sendInterviewEmail,
 };

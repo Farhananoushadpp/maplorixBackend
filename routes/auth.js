@@ -9,6 +9,7 @@ import {
   changePassword,
   handleValidationErrors,
 } from "../controllers/authController.js";
+import auth from "../middleware/auth.js";
 
 const router = express.Router();
 
@@ -76,11 +77,12 @@ router.post(
 router.post("/refresh", refreshToken);
 
 // GET /api/auth/me - Get current user profile
-router.get("/me", getProfile);
+router.get("/me", auth, getProfile);
 
 // PUT /api/auth/me - Update current user profile
 router.put(
   "/me",
+  auth,
   [
     body("firstName")
       .optional()
@@ -113,6 +115,7 @@ router.put(
 // POST /api/auth/change-password - Change password
 router.post(
   "/change-password",
+  auth,
   [
     body("currentPassword")
       .notEmpty()
