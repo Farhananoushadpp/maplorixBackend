@@ -61,12 +61,10 @@ export const submitApplication = async (req, res) => {
       remoteWork,
     } = req.body;
 
-    // Check if resume file was uploaded
-    if (!req.file) {
-      return res.status(400).json({
-        error: "Validation Error",
-        message: "Resume file is required",
-      });
+    // Check if resume file was uploaded (optional)
+    let resumePath = null;
+    if (req.file) {
+      resumePath = req.file.path;
     }
 
     // Verify job exists
@@ -89,7 +87,11 @@ export const submitApplication = async (req, res) => {
       skills,
       currentCompany,
       currentDesignation,
-      expectedSalary: expectedSalary ? JSON.parse(expectedSalary) : {},
+      expectedSalary: expectedSalary
+        ? typeof expectedSalary === "string"
+          ? JSON.parse(expectedSalary)
+          : expectedSalary
+        : {},
       noticePeriod,
       job,
       coverLetter,
@@ -112,16 +114,27 @@ export const submitApplication = async (req, res) => {
         ? new Date(expectedStartDate)
         : undefined,
       salaryNegotiable:
-        salaryNegotiable !== undefined ? JSON.parse(salaryNegotiable) : true,
-      relocation: relocation !== undefined ? JSON.parse(relocation) : false,
-      remoteWork: remoteWork !== undefined ? JSON.parse(remoteWork) : false,
-      resume: {
-        filename: req.file.filename,
-        originalName: req.file.originalname,
-        mimetype: req.file.mimetype,
-        size: req.file.size,
-        path: req.file.path,
-      },
+        salaryNegotiable !== undefined
+          ? salaryNegotiable === "true" || salaryNegotiable === true
+          : true,
+      relocation:
+        relocation !== undefined
+          ? relocation === "true" || relocation === true
+          : false,
+      remoteWork:
+        remoteWork !== undefined
+          ? remoteWork === "true" || remoteWork === true
+          : false,
+      resume:
+        resumePath && req.file
+          ? {
+              filename: req.file.filename,
+              originalName: req.file.originalname,
+              mimetype: req.file.mimetype,
+              size: req.file.size,
+              path: req.file.path,
+            }
+          : null,
       ipAddress: req.ip,
       userAgent: req.get("User-Agent"),
     });

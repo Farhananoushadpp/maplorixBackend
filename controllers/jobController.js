@@ -156,13 +156,20 @@ export const getJobById = async (req, res) => {
 // Create new job
 export const createJob = async (req, res) => {
   try {
+    console.log("Creating job with user:", req.user);
+    console.log("Request body:", req.body);
+
     const jobData = {
       ...req.body,
-      postedBy: req.user._id,
+      postedBy: req.user._id, // Use authenticated user's ID
     };
+
+    console.log("Final job data:", jobData);
 
     const job = new Job(jobData);
     await job.save();
+
+    console.log("Job saved successfully:", job);
 
     // Populate user information
     await job.populate("postedBy", "firstName lastName email");
@@ -179,6 +186,7 @@ export const createJob = async (req, res) => {
     res.status(500).json({
       error: "Server Error",
       message: "Failed to create job",
+      details: error.message,
     });
   }
 };
