@@ -104,27 +104,27 @@ const applicationSchema = new mongoose.Schema(
       required: [true, "Job reference is required"],
     },
 
-    // Resume Information
+    // Resume Information (optional)
     resume: {
       filename: {
         type: String,
-        required: [true, "Resume filename is required"],
+        required: false,
       },
       originalName: {
         type: String,
-        required: [true, "Original filename is required"],
+        required: false,
       },
       mimetype: {
         type: String,
-        required: [true, "File type is required"],
+        required: false,
       },
       size: {
         type: Number,
-        required: [true, "File size is required"],
+        required: false,
       },
       path: {
         type: String,
-        required: [true, "File path is required"],
+        required: false,
       },
     },
 
