@@ -11,6 +11,7 @@ import {
   deleteApplication,
   downloadResume,
   getApplicationStats,
+  searchCandidates,
   handleValidationErrors,
 } from "../controllers/applicationController.js";
 import auth from "../middleware/auth.js";
@@ -303,7 +304,72 @@ router.get(
 // GET /api/applications/stats - Get application statistics (protected)
 router.get("/stats", auth, getApplicationStats);
 
-// GET /api/applications/:id - Get single application (protected)
+// GET /api/applications/search - Search candidates with filters (protected)
+router.get(
+  "/search",
+  auth,
+  [
+    query("page")
+      .optional()
+      .isInt({ min: 1 })
+      .withMessage("Page must be a positive integer"),
+    query("limit")
+      .optional()
+      .isInt({ min: 1, max: 100 })
+      .withMessage("Limit must be between 1 and 100"),
+    query("jobRole")
+      .optional()
+      .isLength({ min: 2 })
+      .withMessage("Job role must be at least 2 characters"),
+    query("experience")
+      .optional()
+      .isIn([
+        "fresher",
+        "1-3",
+        "3-5",
+        "5+",
+        "10+",
+        "Entry Level",
+        "Mid Level",
+        "Senior Level",
+        "Executive",
+      ])
+      .withMessage("Invalid experience level"),
+    query("keyword")
+      .optional()
+      .isLength({ min: 2 })
+      .withMessage("Keyword must be at least 2 characters"),
+    query("status")
+      .optional()
+      .isIn([
+        "submitted",
+        "under-review",
+        "shortlisted",
+        "interview-scheduled",
+        "interviewed",
+        "rejected",
+        "selected",
+        "withdrawn",
+      ])
+      .withMessage("Invalid status"),
+    query("location")
+      .optional()
+      .isLength({ min: 2 })
+      .withMessage("Location must be at least 2 characters"),
+    query("sortBy")
+      .optional()
+      .isIn(["createdAt", "fullName", "experience", "jobRole", "status"])
+      .withMessage("Invalid sort field"),
+    query("sortOrder")
+      .optional()
+      .isIn(["asc", "desc"])
+      .withMessage("Sort order must be asc or desc"),
+  ],
+  handleValidationErrors,
+  searchCandidates,
+);
+
+// GET /api/applications - Get single application (protected)
 router.get("/:id", auth, getApplicationById);
 
 // GET /api/applications/:id/resume - Download resume (protected)

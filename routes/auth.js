@@ -36,7 +36,7 @@ router.post(
       .withMessage("Password must be at least 6 characters long"),
     body("role")
       .optional()
-      .isIn(["admin", "hr", "recruiter", "manager"])
+      .isIn(["admin", "hr", "recruiter", "manager", "user"])
       .withMessage("Invalid role"),
     body("department")
       .optional()
@@ -48,12 +48,17 @@ router.post(
         "Operations",
         "Finance",
         "Legal",
+        "General",
       ])
       .withMessage("Invalid department"),
     body("phone")
       .optional()
       .isLength({ max: 20 })
       .withMessage("Phone number cannot exceed 20 characters"),
+    body("message")
+      .optional()
+      .isLength({ max: 2000 })
+      .withMessage("Message cannot exceed 2000 characters"),
   ],
   handleValidationErrors,
   register,

@@ -512,4 +512,97 @@ export const getApplicationStats = async (req, res) => {
   }
 };
 
+// Search candidates with filters
+export const searchCandidates = async (req, res) => {
+  try {
+    const {
+      page = 1,
+      limit = 10,
+      jobRole,
+      experience,
+      keyword,
+      status,
+      location,
+      sortBy = "createdAt",
+      sortOrder = "desc",
+    } = req.query;
+
+    // Build filter object
+    const filter = {};
+
+    // Filter by jobRole
+    if (jobRole) {
+      filter.jobRole = new RegExp(jobRole, "i");
+    }
+
+    // Filter by experience
+    if (experience) {
+      filter.experience = experience;
+    }
+
+    // Filter by status
+    if (status) {
+      filter.status = status;
+    }
+
+    // Filter by location
+    if (location) {
+      filter.location = new RegExp(location, "i");
+    }
+
+    // Search by keyword (searches in skills, fullName, email)
+    if (keyword) {
+      filter.$or = [
+        { skills: new RegExp(keyword, "i") },
+        { fullName: new RegExp(keyword, "i") },
+        { email: new RegExp(keyword, "i") },
+        { jobRole: new RegExp(keyword, "i") },
+      ];
+    }
+
+    // Build sort
+    const sort = {};
+    sort[sortBy] = sortOrder === "desc" ? -1 : 1;
+
+    // Execute query with pagination
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const [applications, total] = await Promise.all([
+      Application.find(filter)
+        .sort(sort)
+        .skip(skip)
+        .limit(parseInt(limit))
+        .populate("job", "title company location type experience jobRole"),
+      Application.countDocuments(filter),
+    ]);
+
+    res.json({
+      success: true,
+      message: "Candidates search completed successfully",
+      data: {
+        candidates: applications,
+        pagination: {
+          current: parseInt(page),
+          pageSize: parseInt(limit),
+          total,
+          pages: Math.ceil(total / parseInt(limit)),
+        },
+        filters: {
+          jobRole: jobRole || null,
+          experience: experience || null,
+          keyword: keyword || null,
+          status: status || null,
+          location: location || null,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Error searching candidates:", error);
+    res.status(500).json({
+      error: "Server Error",
+      message: "Failed to search candidates",
+    });
+  }
+};
+
 export { handleValidationErrors };

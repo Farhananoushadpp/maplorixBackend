@@ -2,6 +2,7 @@ import { validationResult } from "express-validator";
 import mongoose from "mongoose";
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
+import Contact from "../models/Contact.js";
 
 // Validation middleware
 const handleValidationErrors = (req, res, next) => {
@@ -28,8 +29,7 @@ const generateToken = (userId) => {
 // Register a new user
 export const register = async (req, res) => {
   try {
-    const { firstName, lastName, email, password, role, department, phone } =
-      req.body;
+    const { firstName, lastName, email, password, phone, message } = req.body;
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
@@ -40,20 +40,33 @@ export const register = async (req, res) => {
       });
     }
 
-    // Create new user
+    // Step 1: Save basic details to Contacts collection
+    const contact = new Contact({
+      name: `${firstName} ${lastName}`,
+      email: email,
+      phone: phone || "",
+      subject: "User Registration",
+      message: message || "New user registration",
+      category: "general",
+      status: "pending",
+    });
+
+    await contact.save();
+
+    // Step 2: Create login credentials in Users collection
     const user = new User({
       firstName,
       lastName,
       email,
       password,
-      role: role || "recruiter",
-      department: department || "HR",
-      phone,
+      role: "user", // Default role as per requirements
+      department: "General",
+      phone: phone || "",
     });
 
     await user.save();
 
-    // Generate token
+    // Step 3: Generate JWT token
     const token = generateToken(user._id);
 
     // Remove password from response
@@ -65,6 +78,11 @@ export const register = async (req, res) => {
       data: {
         user,
         token,
+        contact: {
+          id: contact._id,
+          name: contact.name,
+          email: contact.email,
+        },
       },
     });
   } catch (error) {
