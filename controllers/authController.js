@@ -31,9 +31,23 @@ export const register = async (req, res) => {
   try {
     const { firstName, lastName, email, password, phone, message } = req.body;
 
+    console.log("🔍 Registration attempt:");
+    console.log("  First Name:", firstName);
+    console.log("  Last Name:", lastName);
+    console.log("  Email:", email);
+    console.log("  Phone:", phone);
+    console.log("  Request body:", JSON.stringify(req.body));
+
+    // Check database connection
+    console.log("  DB state:", mongoose.connection.readyState);
+    console.log("  DB host:", mongoose.connection.host);
+
     // Check if user already exists
     const existingUser = await User.findOne({ email });
+    console.log("  Existing user found:", !!existingUser);
+
     if (existingUser) {
+      console.log("  User already exists with email:", email);
       return res.status(400).json({
         error: "Registration Error",
         message: "User with this email already exists",
@@ -41,6 +55,7 @@ export const register = async (req, res) => {
     }
 
     // Step 1: Save basic details to Contacts collection
+    console.log("  Step 1: Creating contact...");
     const contact = new Contact({
       name: `${firstName} ${lastName}`,
       email: email,
@@ -51,9 +66,12 @@ export const register = async (req, res) => {
       status: "pending",
     });
 
+    console.log("  Contact object created:", !!contact);
     await contact.save();
+    console.log("  Contact saved successfully. ID:", contact._id);
 
     // Step 2: Create login credentials in Users collection
+    console.log("  Step 2: Creating user...");
     const user = new User({
       firstName,
       lastName,
@@ -64,7 +82,9 @@ export const register = async (req, res) => {
       phone: phone || "",
     });
 
+    console.log("  User object created:", !!user);
     await user.save();
+    console.log("  User saved successfully. ID:", user._id);
 
     // Step 3: Generate JWT token
     const token = generateToken(user._id);
