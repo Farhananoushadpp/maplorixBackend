@@ -142,7 +142,7 @@ router.post(
         "negotiable",
       ])
       .withMessage("Invalid notice period"),
-    body("job").isMongoId().withMessage("Invalid job ID"),
+    body("job").optional().isMongoId().withMessage("Invalid job ID"),
     body("coverLetter")
       .optional()
       .isLength({ max: 5000 })

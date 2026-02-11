@@ -67,13 +67,16 @@ export const submitApplication = async (req, res) => {
       resumePath = req.file.path;
     }
 
-    // Verify job exists
-    const jobExists = await Job.findById(job);
-    if (!jobExists) {
-      return res.status(400).json({
-        error: "Validation Error",
-        message: "Invalid job ID",
-      });
+    // Verify job exists (optional)
+    let jobExists = null;
+    if (job) {
+      jobExists = await Job.findById(job);
+      if (!jobExists) {
+        return res.status(400).json({
+          error: "Validation Error",
+          message: "Invalid job ID",
+        });
+      }
     }
 
     // Create application

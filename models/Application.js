@@ -97,11 +97,11 @@ const applicationSchema = new mongoose.Schema(
       default: "30 days",
     },
 
-    // Job Information
+    // Job Information (optional)
     job: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Job",
-      required: [true, "Job reference is required"],
+      required: false,
     },
 
     // Resume Information (optional)
