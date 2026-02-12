@@ -180,6 +180,14 @@ export const submitApplication = async (req, res) => {
 // Get all applications with filtering and pagination
 export const getAllApplications = async (req, res) => {
   try {
+    // Check if user is admin
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        error: "Access Denied",
+        message: "Only admin users can view candidate applications",
+      });
+    }
+
     const {
       page = 1,
       limit = 10,
@@ -518,6 +526,14 @@ export const getApplicationStats = async (req, res) => {
 // Search candidates with filters
 export const searchCandidates = async (req, res) => {
   try {
+    // Check if user is admin
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        error: "Access Denied",
+        message: "Only admin users can search candidates",
+      });
+    }
+
     const {
       page = 1,
       limit = 10,
