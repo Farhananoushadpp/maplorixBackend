@@ -86,6 +86,16 @@ const handleApplicationUpload = (req, res, next) => {
             message: "Unexpected file field. Only resume files are allowed.",
           });
         }
+        if (
+          err.message &&
+          err.message.includes("Multipart: Boundary not found")
+        ) {
+          return res.status(400).json({
+            error: "Validation Error",
+            message:
+              "Invalid multipart request. Please ensure proper form-data formatting or use JSON format.",
+          });
+        }
         return res.status(400).json({
           error: "Validation Error",
           message: "File upload error: " + err.message,
@@ -94,7 +104,7 @@ const handleApplicationUpload = (req, res, next) => {
       next();
     });
   } else {
-    // For JSON requests, continue without multer
+    // For JSON and URL-encoded requests, continue without multer
     next();
   }
 };
