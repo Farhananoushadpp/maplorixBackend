@@ -65,10 +65,44 @@ const upload = multer({
   },
 });
 
+// Middleware to handle both file uploads and form-data without files
+const handleApplicationUpload = (req, res, next) => {
+  const contentType = req.headers["content-type"];
+
+  if (contentType && contentType.includes("multipart/form-data")) {
+    // Use multer for multipart data (with or without files)
+    upload.single("resume")(req, res, (err) => {
+      if (err) {
+        // Handle multer errors
+        if (err.code === "LIMIT_FILE_SIZE") {
+          return res.status(400).json({
+            error: "Validation Error",
+            message: "File size too large. Maximum size is 5MB.",
+          });
+        }
+        if (err.code === "LIMIT_UNEXPECTED_FILE") {
+          return res.status(400).json({
+            error: "Validation Error",
+            message: "Unexpected file field. Only resume files are allowed.",
+          });
+        }
+        return res.status(400).json({
+          error: "Validation Error",
+          message: "File upload error: " + err.message,
+        });
+      }
+      next();
+    });
+  } else {
+    // For JSON requests, continue without multer
+    next();
+  }
+};
+
 // POST /api/applications - Submit a new job application
 router.post(
   "/",
-  upload.single("resume"),
+  handleApplicationUpload,
   [
     body("fullName")
       .notEmpty()
