@@ -1,5 +1,6 @@
 import express from "express";
 import { body } from "express-validator";
+import multer from "multer";
 import {
   register,
   login,
@@ -13,9 +14,13 @@ import auth from "../middleware/auth.js";
 
 const router = express.Router();
 
+// Configure multer for form-data (no file upload needed, just parsing)
+const upload = multer(); // Uses memory storage by default
+
 // POST /api/auth/register - Register a new user
 router.post(
   "/register",
+  upload.none(), // Parse form-data without files
   [
     body("firstName")
       .notEmpty()
