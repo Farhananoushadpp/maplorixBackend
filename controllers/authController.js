@@ -103,6 +103,11 @@ export const register = async (req, res) => {
           name: contact.name,
           email: contact.email,
         },
+        routing: {
+          redirectTo: user.role === "admin" ? "/admin/dashboard" : "/website",
+          role: user.role,
+          isAdmin: user.role === "admin",
+        },
       },
     });
   } catch (error) {
@@ -190,6 +195,11 @@ export const login = async (req, res) => {
       data: {
         user,
         token,
+        routing: {
+          redirectTo: user.role === "admin" ? "/admin/dashboard" : "/website",
+          role: user.role,
+          isAdmin: user.role === "admin",
+        },
       },
     });
   } catch (error) {
