@@ -79,6 +79,18 @@ export const submitApplication = async (req, res) => {
       }
     }
 
+    // Helper function to safely parse JSON
+    const safeJSONParse = (value) => {
+      if (!value) return [];
+      if (typeof value === "object") return value;
+      try {
+        return JSON.parse(value);
+      } catch (error) {
+        console.error("JSON parse error:", error);
+        return [];
+      }
+    };
+
     // Create application
     const application = new Application({
       fullName,
@@ -92,7 +104,7 @@ export const submitApplication = async (req, res) => {
       currentDesignation,
       expectedSalary: expectedSalary
         ? typeof expectedSalary === "string"
-          ? JSON.parse(expectedSalary)
+          ? safeJSONParse(expectedSalary)
           : expectedSalary
         : {},
       noticePeriod,
@@ -107,11 +119,11 @@ export const submitApplication = async (req, res) => {
       dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
       nationality,
       workAuthorization,
-      languages: languages ? JSON.parse(languages) : [],
-      education: education ? JSON.parse(education) : [],
-      workHistory: workHistory ? JSON.parse(workHistory) : [],
-      certifications: certifications ? JSON.parse(certifications) : [],
-      references: references ? JSON.parse(references) : [],
+      languages: safeJSONParse(languages),
+      education: safeJSONParse(education),
+      workHistory: safeJSONParse(workHistory),
+      certifications: safeJSONParse(certifications),
+      references: safeJSONParse(references),
       availability,
       expectedStartDate: expectedStartDate
         ? new Date(expectedStartDate)
