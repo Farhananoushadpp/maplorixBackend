@@ -14,6 +14,7 @@ import jobsRouter from "./routes/jobs.js";
 import contactsRouter from "./routes/contacts.js";
 import applicationsRouter from "./routes/applications.js";
 import authRouter from "./routes/auth.js";
+import adminRouter from "./routes/admin.js";
 
 // Load environment variables
 dotenv.config();
@@ -84,6 +85,7 @@ app.use("/api/jobs", jobsRouter);
 app.use("/api/contacts", contactsRouter);
 app.use("/api/applications", applicationsRouter);
 app.use("/api/auth", authRouter);
+app.use("/api/admin", adminRouter);
 
 // Root endpoint
 app.get("/", (req, res) => {
@@ -96,6 +98,7 @@ app.get("/", (req, res) => {
       contacts: "/api/contacts",
       applications: "/api/applications",
       auth: "/api/auth",
+      admin: "/api/admin",
       health: "/health",
     },
   });
