@@ -8,6 +8,8 @@ import {
 import PostJobForm from "../components/PostJobForm";
 import FeedPage from "../pages/FeedPage";
 import AdminPostsPage from "../pages/AdminPostsPage";
+import AdminDashboard from "../pages/AdminDashboard";
+import JobDetailsPage from "../pages/JobDetailsPage";
 
 const App = () => {
   // Check if user is logged in
@@ -34,6 +36,7 @@ const App = () => {
           {/* Public Routes */}
           <Route path="/" element={<FeedPage />} />
           <Route path="/feed" element={<FeedPage />} />
+          <Route path="/job/:jobId" element={<JobDetailsPage />} />
 
           {/* Protected Routes */}
           <Route
@@ -44,6 +47,16 @@ const App = () => {
           />
 
           {/* Admin Only Routes */}
+          <Route
+            path="/admin/dashboard"
+            element={
+              isAuthenticated() && isAdmin() ? (
+                <AdminDashboard />
+              ) : (
+                <Navigate to="/login" />
+              )
+            }
+          />
           <Route
             path="/admin/posts"
             element={

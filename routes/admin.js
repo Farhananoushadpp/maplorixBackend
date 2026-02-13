@@ -7,6 +7,13 @@ import {
   deleteJob,
   getJobStats,
 } from "../controllers/jobController.js";
+import {
+  getAllApplications,
+  getApplicationById,
+  updateApplication,
+  deleteApplication,
+  getApplicationStats,
+} from "../controllers/applicationController.js";
 import auth from "../middleware/auth.js";
 import adminAuth from "../middleware/adminAuth.js";
 
@@ -298,6 +305,93 @@ router.delete(
       });
     }
   },
+);
+
+// GET /api/admin/applications - Get all applications with admin controls (admin only)
+router.get(
+  "/applications",
+  adminAuth,
+  [
+    query("page")
+      .optional()
+      .isInt({ min: 1 })
+      .withMessage("Page must be a positive integer"),
+
+    query("limit")
+      .optional()
+      .isInt({ min: 1, max: 100 })
+      .withMessage("Limit must be between 1 and 100"),
+
+    query("status")
+      .optional()
+      .isIn([
+        "all",
+        "submitted",
+        "under-review",
+        "shortlisted",
+        "interview-scheduled",
+        "interviewed",
+        "rejected",
+        "selected",
+        "withdrawn",
+      ])
+      .withMessage("Invalid status filter"),
+
+    query("jobId").optional().isMongoId().withMessage("Invalid job ID"),
+
+    query("search")
+      .optional()
+      .isLength({ min: 1 })
+      .withMessage("Search term cannot be empty"),
+  ],
+  getAllApplications,
+);
+
+// GET /api/admin/applications/stats - Get application statistics (admin only)
+router.get("/applications/stats", adminAuth, getApplicationStats);
+
+// GET /api/admin/applications/:id - Get specific application by ID (admin only)
+router.get(
+  "/applications/:id",
+  adminAuth,
+  [param("id").isMongoId().withMessage("Invalid application ID")],
+  getApplicationById,
+);
+
+// PUT /api/admin/applications/:id - Update application status (admin only)
+router.put(
+  "/applications/:id",
+  adminAuth,
+  [
+    param("id").isMongoId().withMessage("Invalid application ID"),
+
+    body("status")
+      .isIn([
+        "submitted",
+        "under-review",
+        "shortlisted",
+        "interview-scheduled",
+        "interviewed",
+        "rejected",
+        "selected",
+        "withdrawn",
+      ])
+      .withMessage("Invalid status"),
+
+    body("notes")
+      .optional()
+      .isLength({ max: 1000 })
+      .withMessage("Notes cannot exceed 1000 characters"),
+  ],
+  updateApplication,
+);
+
+// DELETE /api/admin/applications/:id - Delete application (admin only)
+router.delete(
+  "/applications/:id",
+  adminAuth,
+  [param("id").isMongoId().withMessage("Invalid application ID")],
+  deleteApplication,
 );
 
 export default router;
