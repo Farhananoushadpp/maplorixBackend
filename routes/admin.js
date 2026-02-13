@@ -1,5 +1,5 @@
 import express from "express";
-import { query, param } from "express-validator";
+import { query, param, body } from "express-validator";
 import {
   getAllJobs,
   getJobById,
@@ -73,11 +73,7 @@ router.get("/jobs/stats", adminAuth, getJobStats);
 router.get(
   "/jobs/:id",
   adminAuth,
-  [
-    param("id")
-      .isMongoId()
-      .withMessage("Invalid job ID"),
-  ],
+  [param("id").isMongoId().withMessage("Invalid job ID")],
   getJobById,
 );
 
@@ -86,9 +82,7 @@ router.put(
   "/jobs/:id",
   adminAuth,
   [
-    param("id")
-      .isMongoId()
-      .withMessage("Invalid job ID"),
+    param("id").isMongoId().withMessage("Invalid job ID"),
 
     body("title")
       .optional()
@@ -199,11 +193,7 @@ router.put(
 router.delete(
   "/jobs/:id",
   adminAuth,
-  [
-    param("id")
-      .isMongoId()
-      .withMessage("Invalid job ID"),
-  ],
+  [param("id").isMongoId().withMessage("Invalid job ID")],
   deleteJob,
 );
 
@@ -211,14 +201,10 @@ router.delete(
 router.post(
   "/jobs/:id/toggle-featured",
   adminAuth,
-  [
-    param("id")
-      .isMongoId()
-      .withMessage("Invalid job ID"),
-  ],
+  [param("id").isMongoId().withMessage("Invalid job ID")],
   async (req, res) => {
     try {
-      const Job = await import("../models/Job.js").then(m => m.default);
+      const Job = await import("../models/Job.js").then((m) => m.default);
       const job = await Job.findById(req.params.id);
 
       if (!job) {
@@ -252,14 +238,10 @@ router.post(
 router.post(
   "/jobs/:id/toggle-active",
   adminAuth,
-  [
-    param("id")
-      .isMongoId()
-      .withMessage("Invalid job ID"),
-  ],
+  [param("id").isMongoId().withMessage("Invalid job ID")],
   async (req, res) => {
     try {
-      const Job = await import("../models/Job.js").then(m => m.default);
+      const Job = await import("../models/Job.js").then((m) => m.default);
       const job = await Job.findById(req.params.id);
 
       if (!job) {
@@ -293,14 +275,10 @@ router.post(
 router.delete(
   "/jobs/bulk",
   adminAuth,
-  [
-    body("jobIds")
-      .isArray({ min: 1 })
-      .withMessage("Job IDs must be an array"),
-  ],
+  [body("jobIds").isArray({ min: 1 }).withMessage("Job IDs must be an array")],
   async (req, res) => {
     try {
-      const Job = await import("../models/Job.js").then(m => m.default);
+      const Job = await import("../models/Job.js").then((m) => m.default);
       const { jobIds } = req.body;
 
       const result = await Job.deleteMany({ _id: { $in: jobIds } });
