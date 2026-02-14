@@ -84,12 +84,39 @@ const upload = multer({
   },
 });
 
+// Multer error handling middleware
+const handleMulterError = (err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    // A Multer error occurred when uploading
+    if (err.code === "LIMIT_FILE_SIZE") {
+      return res.status(400).json({
+        error: "File too large",
+        message: "File size cannot exceed 5MB",
+      });
+    }
+    return res.status(400).json({
+      error: "File upload error",
+      message: err.message,
+    });
+  } else if (err) {
+    // An unknown error occurred
+    console.error("Multer error:", err);
+    return res.status(500).json({
+      error: "Server Error",
+      message: "File upload failed",
+    });
+  }
+  next();
+};
+
 // POST /api/applications - Submit a new job application
 
 router.post(
   "/",
 
   upload.single("resume"),
+
+  handleMulterError,
 
   [
     body("fullName")

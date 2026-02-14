@@ -33,18 +33,21 @@ export const getAllJobs = async (req, res) => {
 
       limit = 10,
 
+      role, // Job Role / Title filter
+      title, // Alternative title filter
+      minExp, // Experience minimum
+      maxExp, // Experience maximum
+      minSalary, // Salary minimum
+      maxSalary, // Salary maximum
+      location, // Job location filter
+      jobId, // Job ID filter
+      dateFrom, // Date range from
+      dateTo, // Date range to
       category,
-
       type,
-
       experience,
-
-      location,
-
       search,
-
       featured,
-
       active = true,
 
       sortBy = "createdAt",
@@ -53,41 +56,84 @@ export const getAllJobs = async (req, res) => {
     } = req.query;
 
     // Build filter
-
     const filter = {};
 
+    // Job Role / Title filter (case-insensitive)
+    if (role || title) {
+      const searchTerm = role || title;
+      filter.title = new RegExp(searchTerm, "i");
+    }
+
+    // Experience range filter
+    if (minExp || maxExp) {
+      filter.experience = {};
+      if (minExp) filter.experience.$gte = minExp;
+      if (maxExp) filter.experience.$lte = maxExp;
+    } else if (experience) {
+      filter.experience = experience;
+    }
+
+    // Salary range filter
+    if (minSalary || maxSalary) {
+      filter.salary = {};
+      if (minSalary) {
+        // Extract numeric value from salary string
+        const minNum = parseInt(minSalary.replace(/[^0-9]/g, ""));
+        if (!isNaN(minNum)) filter.salary.$gte = minNum;
+      }
+      if (maxSalary) {
+        // Extract numeric value from salary string
+        const maxNum = parseInt(maxSalary.replace(/[^0-9]/g, ""));
+        if (!isNaN(maxNum)) filter.salary.$lte = maxNum;
+      }
+    }
+
+    // Location filter (case-insensitive)
+    if (location) {
+      filter.location = new RegExp(location, "i");
+    }
+
+    // Job ID filter
+    if (jobId) {
+      filter._id = jobId;
+    }
+
+    // Date range filter
+    if (dateFrom || dateTo) {
+      filter.createdAt = {};
+      if (dateFrom) {
+        const fromDate = new Date(dateFrom);
+        if (!isNaN(fromDate.getTime())) filter.createdAt.$gte = fromDate;
+      }
+      if (dateTo) {
+        const toDate = new Date(dateTo);
+        if (!isNaN(toDate.getTime())) filter.createdAt.$lte = toDate;
+      }
+    }
+
+    // Legacy filters for backward compatibility
     if (category) filter.category = category;
-
     if (type) filter.type = type;
-
-    if (experience) filter.experience = experience;
-
-    if (location) filter.location = new RegExp(location, "i");
-
     if (featured !== undefined) filter.featured = featured === "true";
-
     if (active !== undefined) filter.active = active === "true";
 
+    // Multi-field search
     if (search) {
       filter.$or = [
         { title: new RegExp(search, "i") },
-
         { company: new RegExp(search, "i") },
-
         { description: new RegExp(search, "i") },
-
         { requirements: new RegExp(search, "i") },
+        { location: new RegExp(search, "i") },
       ];
     }
 
     // Build sort
-
     const sort = {};
 
     sort[sortBy] = sortOrder === "desc" ? -1 : 1;
 
     // Execute query with pagination
-
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const [jobs, total] = await Promise.all([
@@ -118,6 +164,23 @@ export const getAllJobs = async (req, res) => {
           total,
 
           pages: Math.ceil(total / parseInt(limit)),
+        },
+        filters: {
+          applied: {
+            role,
+            title,
+            minExp,
+            maxExp,
+            minSalary,
+            maxSalary,
+            location,
+            jobId,
+            dateFrom,
+            dateTo,
+            search,
+            sortBy,
+            sortOrder,
+          },
         },
       },
     });

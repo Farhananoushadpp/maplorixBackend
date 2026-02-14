@@ -150,11 +150,6 @@ const applicationSchema = new mongoose.Schema(
     },
 
     // Additional Information
-    coverLetter: {
-      type: String,
-      trim: true,
-      maxlength: [5000, "Cover letter cannot exceed 5000 characters"],
-    },
     linkedinProfile: {
       type: String,
       trim: true,

@@ -41,74 +41,64 @@ export const submitApplication = async (req, res) => {
   try {
     const {
       fullName,
-
       email,
-
       phone,
-
       location,
-
       jobRole,
-
       experience,
-
       skills,
-
       currentCompany,
-
       currentDesignation,
-
       expectedSalary,
-
       noticePeriod,
-
       job,
-
-      coverLetter,
-
       linkedinProfile,
-
       portfolio,
-
       github,
-
       website,
-
       source,
-
       gender,
-
       dateOfBirth,
-
       nationality,
-
       workAuthorization,
-
       languages,
-
       education,
-
       workHistory,
-
       certifications,
-
       references,
-
       availability,
-
       expectedStartDate,
-
       salaryNegotiable,
-
       relocation,
-
       remoteWork,
+      captchaToken, // CAPTCHA token from frontend
     } = req.body;
 
+    // Verify CAPTCHA token (for production, use your actual secret key)
+    console.log("CAPTCHA Token received:", captchaToken ? "Yes" : "No");
+
+    if (!captchaToken || captchaToken === "undefined" || captchaToken === "") {
+      return res.status(400).json({
+        error: "Validation Error",
+        message:
+          "CAPTCHA verification is required. Please complete the CAPTCHA challenge.",
+      });
+    }
+
+    // For production, verify the CAPTCHA token with Google's API
+    // const recaptchaSecret = process.env.RECAPTCHA_SECRET_KEY;
+    // const recaptchaVerifyUrl = `https://www.google.com/recaptcha/api/siteverify?secret=${recaptchaSecret}&response=${captchaToken}`;
+    // const recaptchaResponse = await fetch(recaptchaVerifyUrl, { method: 'POST' });
+    // const recaptchaData = await recaptchaResponse.json();
+    // if (!recaptchaData.success) {
+    //   return res.status(400).json({
+    //     error: "Validation Error",
+    //     message: "CAPTCHA verification failed",
+    //   });
+    // }
+
     // Check if resume file was uploaded (optional)
-
     let resumePath = null;
-
     if (req.file) {
       resumePath = req.file.path;
     }
@@ -129,73 +119,42 @@ export const submitApplication = async (req, res) => {
       }
     }
 
-    // Create application
-
+    // Create application (without coverLetter)
     const application = new Application({
       fullName,
-
       email,
-
       phone,
-
       location,
-
       jobRole,
-
       experience,
-
       skills,
-
       currentCompany,
-
       currentDesignation,
-
       expectedSalary: expectedSalary
         ? typeof expectedSalary === "string"
           ? JSON.parse(expectedSalary)
           : expectedSalary
         : {},
-
       noticePeriod,
-
       job,
-
-      coverLetter,
-
       linkedinProfile,
-
       portfolio,
-
       github,
-
       website,
-
       source: source || "website",
-
       gender,
-
       dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
-
       nationality,
-
       workAuthorization,
-
       languages: languages ? JSON.parse(languages) : [],
-
       education: education ? JSON.parse(education) : [],
-
       workHistory: workHistory ? JSON.parse(workHistory) : [],
-
       certifications: certifications ? JSON.parse(certifications) : [],
-
       references: references ? JSON.parse(references) : [],
-
       availability,
-
       expectedStartDate: expectedStartDate
         ? new Date(expectedStartDate)
         : undefined,
-
       salaryNegotiable:
         salaryNegotiable !== undefined
           ? salaryNegotiable === "true" || salaryNegotiable === true
@@ -269,6 +228,8 @@ export const submitApplication = async (req, res) => {
     });
   } catch (error) {
     console.error("Error submitting application:", error);
+    console.error("Error stack:", error.stack);
+    console.error("Request body:", req.body);
 
     res.status(500).json({
       error: "Server Error",
@@ -284,93 +245,131 @@ export const getAllApplications = async (req, res) => {
   try {
     const {
       page = 1,
-
       limit = 10,
-
       status,
-
       jobRole,
-
-      experience,
-
+      minExp,
+      maxExp,
+      minSalary,
+      maxSalary,
       search,
-
       sortBy = "createdAt",
-
       sortOrder = "desc",
+      applicationId,
+      dateFrom,
+      dateTo,
     } = req.query;
 
     // Build filter
-
     const filter = {};
 
+    // Status filter
     if (status) filter.status = status;
 
+    // Job Role filter (case-insensitive)
     if (jobRole) filter.jobRole = new RegExp(jobRole, "i");
 
-    if (experience) filter.experience = experience;
+    // Experience range filter
+    if (minExp || maxExp) {
+      filter.experience = {};
+      if (minExp) filter.experience.$gte = minExp;
+      if (maxExp) filter.experience.$lte = maxExp;
+    } else if (experience) {
+      filter.experience = experience;
+    }
 
+    // Salary range filter
+    if (minSalary || maxSalary) {
+      filter.expectedSalary = {};
+      if (minSalary) {
+        // Extract numeric value from salary string (e.g., "$80,000" -> 80000)
+        const minNum = parseInt(minSalary.replace(/[^0-9]/g, ""));
+        if (!isNaN(minNum)) filter.expectedSalary.$gte = minNum;
+      }
+      if (maxSalary) {
+        // Extract numeric value from salary string
+        const maxNum = parseInt(maxSalary.replace(/[^0-9]/g, ""));
+        if (!isNaN(maxNum)) filter.expectedSalary.$lte = maxNum;
+      }
+    }
+
+    // Application ID filter
+    if (applicationId) {
+      filter._id = applicationId;
+    }
+
+    // Date range filter
+    if (dateFrom || dateTo) {
+      filter.createdAt = {};
+      if (dateFrom) {
+        const fromDate = new Date(dateFrom);
+        if (!isNaN(fromDate.getTime())) filter.createdAt.$gte = fromDate;
+      }
+      if (dateTo) {
+        const toDate = new Date(dateTo);
+        if (!isNaN(toDate.getTime())) filter.createdAt.$lte = toDate;
+      }
+    }
+
+    // Search filter (multiple fields)
     if (search) {
       filter.$or = [
         { fullName: new RegExp(search, "i") },
-
         { email: new RegExp(search, "i") },
-
         { phone: new RegExp(search, "i") },
-
         { jobRole: new RegExp(search, "i") },
-
         { skills: new RegExp(search, "i") },
       ];
     }
 
     // Build sort
-
     const sort = {};
-
     sort[sortBy] = sortOrder === "desc" ? -1 : 1;
 
     // Execute query with pagination
-
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const [applications, total] = await Promise.all([
       Application.find(filter)
-
         .sort(sort)
-
         .skip(skip)
-
         .limit(parseInt(limit))
-
         .populate("job", "title company location type"),
-
       Application.countDocuments(filter),
     ]);
 
     res.json({
       success: true,
-
       data: {
         applications,
-
         pagination: {
           current: parseInt(page),
-
           pageSize: parseInt(limit),
-
           total,
-
           pages: Math.ceil(total / parseInt(limit)),
+        },
+        filters: {
+          applied: {
+            status,
+            jobRole,
+            minExp,
+            maxExp,
+            minSalary,
+            maxSalary,
+            search,
+            sortBy,
+            sortOrder,
+            applicationId,
+            dateFrom,
+            dateTo,
+          },
         },
       },
     });
   } catch (error) {
     console.error("Error fetching applications:", error);
-
     res.status(500).json({
       error: "Server Error",
-
       message: "Failed to fetch applications",
     });
   }
