@@ -316,7 +316,7 @@ export const getProfile = async (req, res) => {
 // Update user profile
 export const updateProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId);
+    const user = await User.findById(req.user._id);
 
     if (!user || !user.isActive) {
       return res.status(401).json({
@@ -347,7 +347,7 @@ export const updateProfile = async (req, res) => {
 // Change password
 export const changePassword = async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId).select("+password");
+    const user = await User.findById(req.user._id).select("+password");
 
     if (!user || !user.isActive) {
       return res.status(401).json({
