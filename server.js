@@ -71,6 +71,13 @@ if (process.env.NODE_ENV === "development") {
 // Static file serving for uploads
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
+// API routes
+app.use("/api/jobs", jobsRouter);
+app.use("/api/contacts", contactsRouter);
+app.use("/api/applications", applicationsRouter);
+app.use("/api/auth", authRouter);
+app.use("/api/admin", adminRouter);
+
 // Health check endpoint
 app.get("/health", (req, res) => {
   res.status(200).json({
@@ -80,37 +87,45 @@ app.get("/health", (req, res) => {
   });
 });
 
-// API routes
-app.use("/api/jobs", jobsRouter);
-app.use("/api/contacts", contactsRouter);
-app.use("/api/applications", applicationsRouter);
-app.use("/api/auth", authRouter);
-app.use("/api/admin", adminRouter);
+// Production: Serve frontend static build
+if (process.env.NODE_ENV === "production") {
+  // Serve static files from the frontend dist folder (Vite build output)
+  const frontendDistPath = path.join(__dirname, "..", "maplorix", "dist");
+  app.use(express.static(frontendDistPath));
 
-// Root endpoint
-app.get("/", (req, res) => {
-  res.json({
-    message: "Maplorix Backend API",
-    version: "1.0.0",
-    status: "running",
-    endpoints: {
-      jobs: "/api/jobs",
-      contacts: "/api/contacts",
-      applications: "/api/applications",
-      auth: "/api/auth",
-      admin: "/api/admin",
-      health: "/health",
-    },
+  // Handle React routing, return index.html for all non-API routes
+  app.get("*", (req, res) => {
+    if (!req.path.startsWith("/api/") && !req.path.startsWith("/uploads/")) {
+      res.sendFile(path.join(frontendDistPath, "index.html"));
+    }
   });
-});
+} else {
+  // Development: Root endpoint
+  app.get("/", (req, res) => {
+    res.json({
+      message: "Maplorix Backend API",
+      version: "1.0.0",
+      status: "running",
+      environment: "development",
+      endpoints: {
+        jobs: "/api/jobs",
+        contacts: "/api/contacts",
+        applications: "/api/applications",
+        auth: "/api/auth",
+        admin: "/api/admin",
+        health: "/health",
+      },
+    });
+  });
 
-// 404 handler
-app.use("*", (req, res) => {
-  res.status(404).json({
-    error: "Route not found",
-    message: `Cannot ${req.method} ${req.originalUrl}`,
+  // Development: 404 handler for API routes only
+  app.use("/api/*", (req, res) => {
+    res.status(404).json({
+      error: "Route not found",
+      message: `Cannot ${req.method} ${req.originalUrl}`,
+    });
   });
-});
+}
 
 // Global error handler
 app.use((err, req, res, next) => {
