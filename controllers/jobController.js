@@ -214,16 +214,11 @@ export const getJobById = async (req, res) => {
 
 export const createJob = async (req, res) => {
   try {
-    // Handle both flat salary fields (from frontend) and nested salary object (expected by model)
     const jobData = {
       ...req.body,
 
-      // Convert flat salary fields to nested object if needed
-      salary: req.body.salary || {
-        min: req.body.salaryMin ? parseFloat(req.body.salaryMin) : undefined,
-        max: req.body.salaryMax ? parseFloat(req.body.salaryMax) : undefined,
-        currency: req.body.currency || "USD",
-      },
+      // Map frontend 'active' to backend 'isActive'
+      isActive: req.body.active !== false, // Default to true if not explicitly false
 
       postedBy: req.user._id,
     };

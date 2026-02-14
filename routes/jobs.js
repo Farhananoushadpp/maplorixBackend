@@ -220,21 +220,6 @@ router.post(
       .isIn(["USD", "EUR", "GBP", "CAD", "AUD", "INR"])
       .withMessage("Invalid currency"),
 
-    body("salaryMin")
-      .optional()
-      .isNumeric()
-      .withMessage("Minimum salary must be a number"),
-
-    body("salaryMax")
-      .optional()
-      .isNumeric()
-      .withMessage("Maximum salary must be a number"),
-
-    body("currency")
-      .optional()
-      .isIn(["USD", "EUR", "GBP", "CAD", "AUD", "INR"])
-      .withMessage("Invalid currency"),
-
     body("applicationDeadline")
       .optional()
       .isISO8601()
