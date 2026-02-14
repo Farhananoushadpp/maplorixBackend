@@ -92,9 +92,11 @@ const jobSchema = new mongoose.Schema(
     },
     jobRole: {
       type: String,
-      required: [true, "Job role is required"],
       trim: true,
       maxlength: [100, "Job role cannot exceed 100 characters"],
+      default: function () {
+        return this.title;
+      },
     },
     applicationDeadline: {
       type: Date,
