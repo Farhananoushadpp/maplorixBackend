@@ -205,25 +205,119 @@ router.post(
       .isLength({ min: 20 })
       .withMessage("Requirements must be at least 20 characters"),
 
-    body("salary.min")
+    body("salaryMin")
       .optional()
       .isNumeric()
       .withMessage("Minimum salary must be a number"),
 
-    body("salary.max")
+    body("salaryMax")
       .optional()
       .isNumeric()
       .withMessage("Maximum salary must be a number"),
 
+    body("salaryType")
+      .optional()
+      .isIn(["Annual", "Monthly", "Hourly"])
+      .withMessage("Invalid salary type"),
+
     body("salary.currency")
       .optional()
-      .isIn(["USD", "EUR", "GBP", "CAD", "AUD", "INR"])
+      .isIn(["USD", "EUR", "GBP", "CAD", "AUD", "INR", "AED"])
       .withMessage("Invalid currency"),
 
     body("applicationDeadline")
       .optional()
       .isISO8601()
       .withMessage("Invalid deadline date"),
+
+    body("applicationMethod")
+      .optional()
+      .isIn(["Email", "Website", "Both"])
+      .withMessage("Invalid application method"),
+
+    body("applicationEmail")
+      .optional()
+      .isEmail()
+      .withMessage("Please enter a valid email address"),
+
+    body("applicationUrl")
+      .optional()
+      .isURL()
+      .withMessage("Please enter a valid URL"),
+
+    body("workLocationType")
+      .optional()
+      .isIn(["On-site", "Remote", "Hybrid"])
+      .withMessage("Invalid work location type"),
+
+    body("companyWebsite")
+      .optional()
+      .isURL()
+      .withMessage("Please enter a valid website URL"),
+
+    body("companySize")
+      .optional()
+      .isIn(["1-10", "11-50", "51-200", "201-500", "500+"])
+      .withMessage("Invalid company size"),
+
+    body("companyIndustry")
+      .optional()
+      .isIn([
+        "Technology",
+        "Healthcare",
+        "Finance",
+        "Marketing",
+        "Sales",
+        "Education",
+        "Engineering",
+        "Design",
+        "Customer Service",
+        "Human Resources",
+        "Operations",
+        "Legal",
+        "Other",
+      ])
+      .withMessage("Invalid industry"),
+
+    body("companyDescription")
+      .optional()
+      .isLength({ max: 500 })
+      .withMessage("Company description cannot exceed 500 characters"),
+
+    body("contactName")
+      .optional()
+      .isLength({ min: 2, max: 100 })
+      .withMessage("Contact name must be between 2 and 100 characters"),
+
+    body("contactEmail")
+      .optional()
+      .isEmail()
+      .withMessage("Please enter a valid email address"),
+
+    body("contactPhone")
+      .optional()
+      .isLength({ min: 10, max: 20 })
+      .withMessage("Contact phone must be between 10 and 20 characters"),
+
+    body("contactTitle")
+      .optional()
+      .isLength({ min: 2, max: 100 })
+      .withMessage("Contact title must be between 2 and 100 characters"),
+
+    body("responsibilities")
+      .optional()
+      .isLength({ min: 20, max: 1000 })
+      .withMessage("Responsibilities must be between 20 and 1000 characters"),
+
+    body("benefits")
+      .optional()
+      .isLength({ min: 10, max: 1000 })
+      .withMessage("Benefits must be between 10 and 1000 characters"),
+
+    body("skills")
+      .optional()
+      .isLength({ min: 5, max: 1000 })
+      .withMessage("Skills must be between 5 and 1000 characters"),
 
     body("featured")
       .optional()

@@ -166,8 +166,17 @@ export const login = async (req, res) => {
     }
 
     // Compare password
-    const isPasswordValid = await user.comparePassword(password);
-    console.log("  Password valid:", isPasswordValid);
+    let isPasswordValid;
+    try {
+      isPasswordValid = await user.comparePassword(password);
+      console.log("  Password valid:", isPasswordValid);
+    } catch (error) {
+      console.error("  Password comparison error:", error);
+      return res.status(500).json({
+        error: "Server Error",
+        message: "Password verification failed",
+      });
+    }
 
     if (!isPasswordValid) {
       console.log("❌ Password comparison failed");
@@ -204,6 +213,24 @@ export const login = async (req, res) => {
     });
   } catch (error) {
     console.error("Error logging in user:", error);
+    console.error("Error stack:", error.stack);
+    console.error("Request body:", req.body);
+
+    // Check for specific error types
+    if (error.name === "ValidationError") {
+      return res.status(400).json({
+        error: "Validation Error",
+        message: error.message,
+      });
+    }
+
+    if (error.name === "CastError") {
+      return res.status(400).json({
+        error: "Invalid Data",
+        message: "Invalid email format",
+      });
+    }
+
     res.status(500).json({
       error: "Server Error",
       message: "Failed to login",

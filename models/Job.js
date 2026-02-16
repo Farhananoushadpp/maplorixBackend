@@ -56,8 +56,8 @@ const jobSchema = new mongoose.Schema(
       },
       currency: {
         type: String,
-        default: "USD",
-        enum: ["USD", "EUR", "GBP", "CAD", "AUD", "INR"],
+        default: "AED",
+        enum: ["USD", "EUR", "GBP", "CAD", "AUD", "INR", "AED"],
       },
     },
     category: {
@@ -102,13 +102,40 @@ const jobSchema = new mongoose.Schema(
       type: Date,
       default: () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
     },
-    isActive: {
-      type: Boolean,
-      default: true,
+    workLocationType: {
+      type: String,
+      enum: ["On-site", "Remote", "Hybrid"],
+      default: "On-site",
+    },
+    applicationMethod: {
+      type: String,
+      enum: ["Email", "Website", "Both"],
+      default: "Email",
+    },
+    applicationEmail: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      match: [
+        /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,})$/,
+        "Please enter a valid email address",
+      ],
+    },
+    applicationUrl: {
+      type: String,
+      trim: true,
     },
     featured: {
       type: Boolean,
       default: false,
+    },
+    postedDate: {
+      type: Date,
+      default: Date.now,
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
     },
     postedBy: {
       type: mongoose.Schema.Types.ObjectId,

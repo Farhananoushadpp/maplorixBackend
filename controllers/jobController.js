@@ -278,11 +278,54 @@ export const getJobById = async (req, res) => {
 export const createJob = async (req, res) => {
   try {
     const jobData = {
-      ...req.body,
+      // Core job fields
+      title: req.body.title,
+      company: req.body.company,
+      location: req.body.location,
+      type: req.body.type,
+      category: req.body.category,
+      customCategory: req.body.customCategory,
+      department: req.body.department,
+      experience: req.body.experience,
+      description: req.body.description,
+      requirements: req.body.requirements,
+      responsibilities: req.body.responsibilities,
+      benefits: req.body.benefits,
+      skills: req.body.skills,
 
-      // Map frontend 'active' to backend 'isActive'
-      isActive: req.body.active !== false, // Default to true if not explicitly false
+      // Salary fields (flat from frontend)
+      salaryMin: req.body.salaryMin
+        ? parseFloat(req.body.salaryMin)
+        : undefined,
+      salaryMax: req.body.salaryMax
+        ? parseFloat(req.body.salaryMax)
+        : undefined,
+      salaryType: req.body.salaryType,
+      currency: req.body.currency || "AED",
 
+      // Application fields
+      applicationDeadline: req.body.applicationDeadline
+        ? new Date(req.body.applicationDeadline)
+        : undefined,
+      applicationMethod: req.body.applicationMethod,
+      applicationEmail: req.body.applicationEmail,
+      applicationUrl: req.body.applicationUrl,
+
+      // Company fields
+      companyWebsite: req.body.companyWebsite,
+      companySize: req.body.companySize,
+      companyIndustry: req.body.companyIndustry,
+      companyDescription: req.body.companyDescription,
+
+      // Work location
+      workLocationType: req.body.workLocationType,
+
+      // System fields
+      featured: req.body.featured || false,
+      active: req.body.active !== false, // Default to true if not explicitly false
+      postedDate: new Date(),
+
+      // User who posted the job
       postedBy: req.user._id,
     };
 
@@ -291,24 +334,19 @@ export const createJob = async (req, res) => {
     await job.save();
 
     // Populate user information
-
     await job.populate("postedBy", "firstName lastName email");
 
     res.status(201).json({
       success: true,
-
       message: "Job created successfully",
-
       data: {
         job,
       },
     });
   } catch (error) {
     console.error("Error creating job:", error);
-
     res.status(500).json({
       error: "Server Error",
-
       message: "Failed to create job",
     });
   }
