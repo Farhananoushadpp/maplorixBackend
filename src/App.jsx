@@ -28,7 +28,7 @@ const pageVariants = {
 const PageLoader = ({ loading }) => {
   return loading ? (
     <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-primary-300 bg-opacity-90">
-      <span className="loader pointer-events-auto"></span>
+      <span className="loader test pointer-events-auto"></span>
     </div>
   ) : null;
 };
