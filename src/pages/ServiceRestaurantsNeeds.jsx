@@ -1,6 +1,6 @@
 import Services from "../components/Services";
 import { useEffect } from "react";
-import { motion } from "motion/react";
+import { motion } from "framer-motion";
 
 const scalevariants = {
   hidden: { opacity: 0, scale: 0.8 },

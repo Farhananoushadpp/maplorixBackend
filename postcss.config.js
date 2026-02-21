@@ -13,11 +13,12 @@ export default {
     postcssNesting(),
     postcssCustomProperties(),
     postcssPresetEnv({
-      stage: 1,
+      stage: 3,
       features: {
         "nesting-rules": true,
         "custom-properties": true,
-        keyframes: true,
+        "custom-media-queries": true,
+        "media-query-ranges": true,
       },
     }),
   ],

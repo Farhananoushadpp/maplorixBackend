@@ -1,5 +1,5 @@
 import Services from "../components/Services";
-import { motion } from "motion/react";
+import { motion } from "framer-motion";
 import { useEffect } from "react";
 
 const scalevariants = {

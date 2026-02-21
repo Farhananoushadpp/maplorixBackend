@@ -20,9 +20,9 @@ import ServiceRestaurantsNeeds from "./pages/ServiceRestaurantsNeeds";
 import PropTypes from "prop-types";
 
 const pageVariants = {
-  initial: { opacity: 0, y: 50 },
-  animate: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" } },
-  exit: { opacity: 0, y: -50, transition: { duration: 0.3, ease: "easeIn" } },
+  initial: { opacity: 0, y: 30 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.3, ease: "easeOut" } },
+  exit: { opacity: 0, y: -30, transition: { duration: 0.2, ease: "easeIn" } },
 };
 
 const PageLoader = ({ loading }) => {
@@ -86,7 +86,7 @@ function App() {
   useEffect(() => {
     const timer = setTimeout(() => {
       setLoading(false);
-    }, 1000);
+    }, 300);
 
     return () => clearTimeout(timer);
   }, []);

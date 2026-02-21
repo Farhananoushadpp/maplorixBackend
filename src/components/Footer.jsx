@@ -1,4 +1,4 @@
-import { motion } from "motion/react";
+import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 
 const slideUpVariants = {
@@ -265,24 +265,19 @@ const Footer = () => {
             transition={{ duration: 0.5, delay: 0.4 }}
             viewport={{ once: true }}
           >
-            <div className="flex flex-col items-center justify-between space-y-4 md:flex-row">
-              <p className="text-center text-sm text-primary-300 md:text-left">
-                © 2024 Abdalawy Services. All rights reserved.
+            <div className="flex flex-col items-center justify-center space-y-4">
+              <p className="text-center text-sm text-primary-300">
+                © 2024{" "}
+                <a
+                  href="https://tarah.ae/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary-200 transition-colors hover:text-white hover:underline"
+                >
+                  Tarah advertising
+                </a>
+                . All rights reserved.
               </p>
-              <div className="flex space-x-6 text-sm">
-                <Link
-                  to="#"
-                  className="text-primary-300 transition-colors hover:text-white"
-                >
-                  Privacy Policy
-                </Link>
-                <Link
-                  to="#"
-                  className="text-primary-300 transition-colors hover:text-white"
-                >
-                  Terms of Service
-                </Link>
-              </div>
             </div>
           </motion.div>
         </div>
