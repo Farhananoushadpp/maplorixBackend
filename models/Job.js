@@ -35,15 +35,15 @@ const jobSchema = new mongoose.Schema(
     },
     description: {
       type: String,
-      required: [true, "Job description is required"],
       trim: true,
       maxlength: [5000, "Job description cannot exceed 5000 characters"],
+      default: "",
     },
     requirements: {
       type: String,
-      required: [true, "Job requirements are required"],
       trim: true,
       maxlength: [3000, "Job requirements cannot exceed 3000 characters"],
+      default: "",
     },
     salary: {
       min: {
@@ -62,7 +62,6 @@ const jobSchema = new mongoose.Schema(
     },
     category: {
       type: String,
-      required: [true, "Job category is required"],
       enum: [
         "Technology",
         "Healthcare",
@@ -78,10 +77,10 @@ const jobSchema = new mongoose.Schema(
         "Legal",
         "Other",
       ],
+      default: "Other",
     },
     experience: {
       type: String,
-      required: [true, "Experience level is required"],
       enum: [
         "Entry Level",
         "Mid Level",
@@ -89,6 +88,7 @@ const jobSchema = new mongoose.Schema(
         "Executive",
         "Fresher",
       ],
+      default: "Entry Level",
     },
     jobRole: {
       type: String,
@@ -138,8 +138,7 @@ const jobSchema = new mongoose.Schema(
       default: true,
     },
     postedBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
+      type: mongoose.Schema.Types.Mixed, // Can be ObjectId (for user reference) or string ("user" or "admin")
       required: true,
     },
     applicationCount: {

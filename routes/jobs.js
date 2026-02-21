@@ -10,6 +10,8 @@ import {
   updateJob,
   deleteJob,
   getJobStats,
+  getDashboardJobs,
+  getAllJobsForDashboard,
   handleValidationErrors,
 } from "../controllers/jobController.js";
 
@@ -17,96 +19,11 @@ import auth from "../middleware/auth.js";
 
 const router = express.Router();
 
-// GET /api/jobs - Get all jobs with filtering and pagination
+// GET /api/jobs - Get all jobs for Dashboard (no auth required)
+router.get("/", getAllJobsForDashboard);
 
-router.get(
-  "/",
-  [
-    query("page")
-      .optional()
-      .isInt({ min: 1 })
-      .withMessage("Page must be a positive integer"),
-
-    query("limit")
-      .optional()
-      .isInt({ min: 1, max: 100 })
-      .withMessage("Limit must be between 1 and 100"),
-
-    query("category")
-      .optional()
-      .isIn([
-        "Technology",
-        "Healthcare",
-        "Finance",
-        "Marketing",
-        "Sales",
-        "Education",
-        "Engineering",
-        "Design",
-        "Customer Service",
-        "Human Resources",
-        "Operations",
-        "Legal",
-        "Other",
-      ])
-      .withMessage("Invalid category"),
-
-    query("type")
-      .optional()
-      .isIn([
-        "Full-time",
-        "Part-time",
-        "Contract",
-        "Internship",
-        "Remote",
-        "Hybrid",
-      ])
-      .withMessage("Invalid job type"),
-
-    query("experience")
-      .optional()
-      .isIn([
-        "Entry Level",
-        "Mid Level",
-        "Senior Level",
-        "Executive",
-        "Fresher",
-      ])
-      .withMessage("Invalid experience level"),
-
-    query("location")
-      .optional()
-      .isLength({ min: 2 })
-      .withMessage("Location must be at least 2 characters"),
-
-    query("search")
-      .optional()
-      .isLength({ min: 2 })
-      .withMessage("Search term must be at least 2 characters"),
-
-    query("featured")
-      .optional()
-      .isBoolean()
-      .withMessage("Featured must be a boolean"),
-
-    query("active")
-      .optional()
-      .isBoolean()
-      .withMessage("Active must be a boolean"),
-
-    query("sortBy")
-      .optional()
-      .isIn(["createdAt", "title", "company", "location", "salary.min"])
-      .withMessage("Invalid sort field"),
-
-    query("sortOrder")
-      .optional()
-      .isIn(["asc", "desc"])
-      .withMessage("Sort order must be asc or desc"),
-  ],
-  handleValidationErrors,
-  getAllJobs,
-);
+// GET /api/jobs/dashboard - Get all jobs for Dashboard (simplified)
+router.get("/dashboard", getDashboardJobs);
 
 // GET /api/jobs/featured - Get featured jobs
 
@@ -130,11 +47,9 @@ router.get("/stats", auth, getJobStats);
 
 router.get("/:id", getJobById);
 
-// POST /api/jobs - Create new job (protected)
-
+// POST /api/jobs - Create new job (no auth required for Home Banner)
 router.post(
   "/",
-  auth,
   [
     body("title")
       .notEmpty()
@@ -142,19 +57,20 @@ router.post(
       .isLength({ min: 3, max: 200 })
       .withMessage("Title must be between 3 and 200 characters"),
 
-    body("company")
-      .notEmpty()
-      .withMessage("Company name is required")
-      .isLength({ min: 2, max: 100 })
-      .withMessage("Company must be between 2 and 100 characters"),
-
     body("location")
       .notEmpty()
       .withMessage("Location is required")
       .isLength({ min: 2, max: 100 })
       .withMessage("Location must be between 2 and 100 characters"),
 
+    body("postedBy")
+      .notEmpty()
+      .withMessage("postedBy is required")
+      .isIn(["user", "admin"])
+      .withMessage("postedBy must be either 'user' or 'admin"),
+
     body("type")
+      .optional()
       .isIn([
         "Full-time",
         "Part-time",
@@ -165,169 +81,50 @@ router.post(
       ])
       .withMessage("Invalid job type"),
 
-    body("category")
-      .isIn([
-        "Technology",
-        "Healthcare",
-        "Finance",
-        "Marketing",
-        "Sales",
-        "Education",
-        "Engineering",
-        "Design",
-        "Customer Service",
-        "Human Resources",
-        "Operations",
-        "Legal",
-        "Other",
-      ])
-      .withMessage("Invalid category"),
-
-    body("experience")
-      .isIn([
-        "Entry Level",
-        "Mid Level",
-        "Senior Level",
-        "Executive",
-        "Fresher",
-      ])
-      .withMessage("Invalid experience level"),
+    body("company")
+      .optional()
+      .isLength({ min: 2, max: 100 })
+      .withMessage("Company must be between 2 and 100 characters"),
 
     body("description")
+      .optional()
+      .isLength({ max: 5000 })
+      .withMessage("Description cannot exceed 5000 characters"),
+  ],
+  handleValidationErrors,
+  createJob,
+);
+
+// POST /api/jobs/simple - Create a new job with minimal validation (for Home Banner/Admin)
+router.post(
+  "/simple",
+  auth,
+  [
+    body("title")
       .notEmpty()
-      .withMessage("Description is required")
-      .isLength({ min: 50 })
-      .withMessage("Description must be at least 50 characters"),
+      .withMessage("Job title is required")
+      .isLength({ min: 3, max: 200 })
+      .withMessage("Title must be between 3 and 200 characters"),
 
-    body("requirements")
+    body("location")
       .notEmpty()
-      .withMessage("Requirements are required")
-      .isLength({ min: 20 })
-      .withMessage("Requirements must be at least 20 characters"),
+      .withMessage("Location is required")
+      .isLength({ min: 2, max: 100 })
+      .withMessage("Location must be between 2 and 100 characters"),
 
-    body("salaryMin")
-      .optional()
-      .isNumeric()
-      .withMessage("Minimum salary must be a number"),
-
-    body("salaryMax")
-      .optional()
-      .isNumeric()
-      .withMessage("Maximum salary must be a number"),
-
-    body("salaryType")
-      .optional()
-      .isIn(["Annual", "Monthly", "Hourly"])
-      .withMessage("Invalid salary type"),
-
-    body("salary.currency")
-      .optional()
-      .isIn(["USD", "EUR", "GBP", "CAD", "AUD", "INR", "AED"])
-      .withMessage("Invalid currency"),
-
-    body("applicationDeadline")
-      .optional()
-      .isISO8601()
-      .withMessage("Invalid deadline date"),
-
-    body("applicationMethod")
-      .optional()
-      .isIn(["Email", "Website", "Both"])
-      .withMessage("Invalid application method"),
-
-    body("applicationEmail")
-      .optional()
-      .isEmail()
-      .withMessage("Please enter a valid email address"),
-
-    body("applicationUrl")
-      .optional()
-      .isURL()
-      .withMessage("Please enter a valid URL"),
-
-    body("workLocationType")
-      .optional()
-      .isIn(["On-site", "Remote", "Hybrid"])
-      .withMessage("Invalid work location type"),
-
-    body("companyWebsite")
-      .optional()
-      .isURL()
-      .withMessage("Please enter a valid website URL"),
-
-    body("companySize")
-      .optional()
-      .isIn(["1-10", "11-50", "51-200", "201-500", "500+"])
-      .withMessage("Invalid company size"),
-
-    body("companyIndustry")
+    body("type")
       .optional()
       .isIn([
-        "Technology",
-        "Healthcare",
-        "Finance",
-        "Marketing",
-        "Sales",
-        "Education",
-        "Engineering",
-        "Design",
-        "Customer Service",
-        "Human Resources",
-        "Operations",
-        "Legal",
-        "Other",
+        "full-time",
+        "part-time",
+        "Full-time",
+        "Part-time",
+        "Contract",
+        "Internship",
+        "Remote",
+        "Hybrid",
       ])
-      .withMessage("Invalid industry"),
-
-    body("companyDescription")
-      .optional()
-      .isLength({ max: 500 })
-      .withMessage("Company description cannot exceed 500 characters"),
-
-    body("contactName")
-      .optional()
-      .isLength({ min: 2, max: 100 })
-      .withMessage("Contact name must be between 2 and 100 characters"),
-
-    body("contactEmail")
-      .optional()
-      .isEmail()
-      .withMessage("Please enter a valid email address"),
-
-    body("contactPhone")
-      .optional()
-      .isLength({ min: 10, max: 20 })
-      .withMessage("Contact phone must be between 10 and 20 characters"),
-
-    body("contactTitle")
-      .optional()
-      .isLength({ min: 2, max: 100 })
-      .withMessage("Contact title must be between 2 and 100 characters"),
-
-    body("responsibilities")
-      .optional()
-      .isLength({ min: 20, max: 1000 })
-      .withMessage("Responsibilities must be between 20 and 1000 characters"),
-
-    body("benefits")
-      .optional()
-      .isLength({ min: 10, max: 1000 })
-      .withMessage("Benefits must be between 10 and 1000 characters"),
-
-    body("skills")
-      .optional()
-      .isLength({ min: 5, max: 1000 })
-      .withMessage("Skills must be between 5 and 1000 characters"),
-
-    body("featured")
-      .optional()
-      .isBoolean()
-      .withMessage("Featured must be a boolean"),
-
-    body("active")
-      .optional()
-      .isBoolean()
-      .withMessage("Active must be a boolean"),
+      .withMessage("Invalid job type"),
   ],
   handleValidationErrors,
   createJob,
@@ -416,19 +213,24 @@ router.put(
       .isLength({ min: 20 })
       .withMessage("Requirements must be at least 20 characters"),
 
-    body("salary.min")
+    body("salaryMin")
       .optional()
       .isNumeric()
       .withMessage("Minimum salary must be a number"),
 
-    body("salary.max")
+    body("salaryMax")
       .optional()
       .isNumeric()
       .withMessage("Maximum salary must be a number"),
 
-    body("salary.currency")
+    body("salaryType")
       .optional()
-      .isIn(["USD", "EUR", "GBP", "CAD", "AUD", "INR"])
+      .isIn(["Annual", "Monthly", "Hourly"])
+      .withMessage("Invalid salary type"),
+
+    body("currency")
+      .optional()
+      .isIn(["USD", "EUR", "GBP", "CAD", "AUD", "INR", "AED"])
       .withMessage("Invalid currency"),
 
     body("applicationDeadline")

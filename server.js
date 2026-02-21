@@ -40,6 +40,9 @@ app.use(
       "http://localhost:3000",
       "http://localhost:4001",
       "http://localhost:5173",
+      "http://localhost:5174",
+      "http://localhost:5175",
+      "http://localhost:5176",
     ],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
@@ -167,44 +170,158 @@ app.use((err, req, res, next) => {
   });
 });
 
+// MongoDB connection event listeners
+mongoose.connection.on("connected", () => {
+  console.log("🔌 Mongoose connected to MongoDB");
+  console.log("🗄️ Active Database:", mongoose.connection.name);
+});
+
+mongoose.connection.on("error", (err) => {
+  console.error("❌ Mongoose connection error:", err);
+});
+
+mongoose.connection.on("disconnected", () => {
+  console.log("🔌 Mongoose disconnected from MongoDB");
+});
+
+// Handle application termination
+process.on("SIGINT", async () => {
+  console.log("\n🛑 Application termination detected");
+  console.log("🗄️ Closing database connection...");
+  await mongoose.connection.close();
+  console.log("✅ Database connection closed");
+  process.exit(0);
+});
+
 // Database connection
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(
-      process.env.MONGODB_URI || "mongodb://localhost:27017/maplorix",
-    );
+    // Get the MongoDB URI from environment variables
+    const mongoURI =
+      process.env.MONGODB_URI || "mongodb://localhost:27017/maplorix";
 
-    console.log(`MongoDB Connected: ${conn.connection.host}`);
+    console.log("🔗 Attempting to connect to MongoDB...");
+    console.log("📍 Connection URI:", mongoURI);
+
+    // Extract database name from URI for logging
+    const dbName = mongoURI.split("/").pop().split("?")[0];
+    console.log("🎯 Target Database Name:", dbName);
+
+    // Connect to MongoDB with explicit options
+    const conn = await mongoose.connect(mongoURI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
+
+    console.log("✅ MongoDB Connected Successfully!");
+    console.log("🗄️ Database Name:", mongoose.connection.name);
+    console.log("🌐 Connection Host:", conn.connection.host);
+    console.log("🔌 Connection Port:", conn.connection.port);
+    console.log("📊 Connection State:", mongoose.connection.readyState);
+
+    // Verify we're connected to the right database
+    if (mongoose.connection.name === dbName) {
+      console.log(
+        "✅ Connected to correct database:",
+        mongoose.connection.name,
+      );
+    } else {
+      console.log("⚠️  Database name mismatch!");
+      console.log("   Expected:", dbName);
+      console.log("   Actual:", mongoose.connection.name);
+    }
+
+    // Test database operations
+    const db = mongoose.connection.db;
+    console.log("📋 Available Collections:");
+    const collections = await db.listCollections().toArray();
+    collections.forEach((collection) => {
+      console.log("   -", collection.name);
+    });
   } catch (error) {
-    console.error("Database connection error:", error);
+    console.error("❌ Database connection error:", error);
+    console.error("🔍 Error Details:", error.message);
     process.exit(1);
   }
 };
 
-// Start server
-const PORT = process.env.PORT || 4000;
+// Start server with automatic port detection
+const DEFAULT_PORT = process.env.PORT || 4000;
+
+const findAvailablePort = async (startPort) => {
+  const net = await import("net").then((mod) => mod.default);
+
+  const tryPort = (port) => {
+    return new Promise((resolve) => {
+      const server = net.createServer();
+
+      server.listen(port, "0.0.0.0", () => {
+        const foundPort = server.address().port;
+        server.close(() => resolve(foundPort));
+      });
+
+      server.on("error", () => {
+        server.close(() => resolve(null));
+      });
+    });
+  };
+
+  // Try ports from startPort to startPort + 100
+  for (let port = startPort; port < startPort + 100; port++) {
+    const availablePort = await tryPort(port);
+    if (availablePort) {
+      return availablePort;
+    }
+  }
+
+  return null; // No port available
+};
 
 const startServer = async () => {
-  await connectDB();
+  try {
+    await connectDB();
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(
-      `Server running in ${process.env.NODE_ENV || "development"} mode on port ${PORT}`,
-    );
-    console.log(`API documentation available at http://localhost:${PORT}`);
-  });
+    const availablePort = await findAvailablePort(DEFAULT_PORT);
+
+    if (!availablePort) {
+      console.error(
+        "No available ports found. Please check your system configuration.",
+      );
+      process.exit(1);
+    }
+
+    app.listen(availablePort, "0.0.0.0", () => {
+      console.log(
+        `Server running in ${process.env.NODE_ENV || "development"} mode on port ${availablePort}`,
+      );
+      console.log(
+        `API documentation available at http://localhost:${availablePort}`,
+      );
+
+      if (availablePort !== parseInt(DEFAULT_PORT)) {
+        console.log(
+          `Note: Port ${DEFAULT_PORT} was in use, using port ${availablePort} instead`,
+        );
+      }
+    });
+  } catch (error) {
+    console.error("Failed to start server:", error);
+    process.exit(1);
+  }
 };
 
 // Handle unhandled promise rejections
 process.on("unhandledRejection", (err, promise) => {
   console.error("Unhandled Promise Rejection:", err);
-  process.exit(1);
+  // Don't exit the process, just log the error
+  console.error("Promise:", promise);
 });
 
 // Handle uncaught exceptions
 process.on("uncaughtException", (err) => {
   console.error("Uncaught Exception:", err);
-  process.exit(1);
+  // Don't exit the process immediately, try to continue
+  console.error("Server will continue running despite the error");
 });
 
 // Graceful shutdown

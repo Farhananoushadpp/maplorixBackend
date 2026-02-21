@@ -36,9 +36,41 @@ const handleValidationErrors = (req, res, next) => {
 };
 
 // Submit new job application
-
 export const submitApplication = async (req, res) => {
+  // Log the incoming request for debugging
+  console.log(
+    "🔧 SUBMIT APPLICATION - Starting application submission process",
+  );
+  console.log("📊 Database Name:", mongoose.connection.name);
+  console.log("🔗 Database State:", mongoose.connection.readyState);
+  console.log("📝 Request Body Fields:", Object.keys(req.body));
+  console.log("📎 Uploaded File:", req.file ? req.file : "No file uploaded");
+
   try {
+    // Validate required fields
+    const requiredFields = [
+      "fullName",
+      "email",
+      "phone",
+      "location",
+      "jobRole",
+      "experience",
+    ];
+
+    const missingFields = requiredFields.filter((field) => !req.body[field]);
+    if (missingFields.length > 0) {
+      console.log(
+        "❌ Validation failed: Missing required fields:",
+        missingFields,
+      );
+      return res.status(400).json({
+        success: false,
+        error: "Validation Error",
+        message: `Missing required fields: ${missingFields.join(", ")}`,
+        fields: missingFields,
+      });
+    }
+
     const {
       fullName,
       email,
@@ -75,167 +107,381 @@ export const submitApplication = async (req, res) => {
     } = req.body;
 
     // Verify CAPTCHA token (for production, use your actual secret key)
-    console.log("CAPTCHA Token received:", captchaToken ? "Yes" : "No");
-
-    if (!captchaToken || captchaToken === "undefined" || captchaToken === "") {
-      return res.status(400).json({
-        error: "Validation Error",
-        message:
-          "CAPTCHA verification is required. Please complete the CAPTCHA challenge.",
-      });
-    }
-
-    // For production, verify the CAPTCHA token with Google's API
-    // const recaptchaSecret = process.env.RECAPTCHA_SECRET_KEY;
-    // const recaptchaVerifyUrl = `https://www.google.com/recaptcha/api/siteverify?secret=${recaptchaSecret}&response=${captchaToken}`;
-    // const recaptchaResponse = await fetch(recaptchaVerifyUrl, { method: 'POST' });
-    // const recaptchaData = await recaptchaResponse.json();
-    // if (!recaptchaData.success) {
-    //   return res.status(400).json({
-    //     error: "Validation Error",
-    //     message: "CAPTCHA verification failed",
-    //   });
-    // }
-
-    // Check if resume file was uploaded (optional)
-    let resumePath = null;
-    if (req.file) {
-      resumePath = req.file.path;
-    }
-
-    // Verify job exists (optional)
-
-    let jobExists = null;
-
-    if (job) {
-      jobExists = await Job.findById(job);
-
-      if (!jobExists) {
+    if (process.env.NODE_ENV === "production") {
+      if (
+        !captchaToken ||
+        captchaToken === "undefined" ||
+        captchaToken === ""
+      ) {
         return res.status(400).json({
+          success: false,
           error: "Validation Error",
+          message:
+            "CAPTCHA verification is required. Please complete the CAPTCHA challenge.",
+        });
+      }
 
-          message: "Invalid job ID",
+      // In production, verify the CAPTCHA token with Google's API
+      try {
+        const recaptchaSecret = process.env.RECAPTCHA_SECRET_KEY;
+        const recaptchaVerifyUrl = `https://www.google.com/recaptcha/api/siteverify?secret=${recaptchaSecret}&response=${captchaToken}`;
+        const recaptchaResponse = await fetch(recaptchaVerifyUrl, {
+          method: "POST",
+        });
+        const recaptchaData = await recaptchaResponse.json();
+
+        if (!recaptchaData.success) {
+          return res.status(400).json({
+            success: false,
+            error: "Validation Error",
+            message: "CAPTCHA verification failed. Please try again.",
+          });
+        }
+      } catch (captchaError) {
+        console.error("CAPTCHA verification error:", captchaError);
+        return res.status(500).json({
+          success: false,
+          error: "Server Error",
+          message: "Failed to verify CAPTCHA. Please try again.",
+        });
+      }
+    } else {
+      console.log("Development mode: Skipping CAPTCHA verification");
+    }
+
+    // Process uploaded file if present
+    let resumeInfo = null;
+    if (req.file) {
+      try {
+        // Verify the file was saved correctly
+        const fs = await import("fs").then((mod) => mod.promises);
+        const fileStat = await fs.stat(req.file.path);
+
+        if (fileStat.size === 0) {
+          console.error("Uploaded file is empty:", req.file.path);
+          // Clean up the empty file
+          await fs.unlink(req.file.path);
+          throw new Error("Uploaded file is empty");
+        }
+
+        resumeInfo = {
+          filename: req.file.filename,
+          originalName: req.file.originalname,
+          mimetype: req.file.mimetype,
+          size: req.file.size,
+          path: req.file.path,
+        };
+
+        console.log("File uploaded successfully:", resumeInfo);
+      } catch (fileError) {
+        console.error("Error processing uploaded file:", fileError);
+        // Clean up the file if it exists
+        if (req.file?.path) {
+          try {
+            await fs.unlink(req.file.path);
+          } catch (cleanupError) {
+            console.error("Error cleaning up file:", cleanupError);
+          }
+        }
+
+        return res.status(400).json({
+          success: false,
+          error: "File Upload Error",
+          message: "Failed to process the uploaded file. Please try again.",
+          details:
+            process.env.NODE_ENV === "development"
+              ? fileError.message
+              : undefined,
         });
       }
     }
 
-    // Create application (without coverLetter)
-    const application = new Application({
-      fullName,
-      email,
-      phone,
-      location,
-      jobRole,
-      experience,
-      skills,
-      currentCompany,
-      currentDesignation,
+    // Verify job exists (optional)
+    let jobExists = null;
+
+    if (job) {
+      try {
+        jobExists = await Job.findById(job);
+        if (!jobExists) {
+          return res.status(400).json({
+            success: false,
+            error: "Validation Error",
+            message: "The specified job does not exist",
+          });
+        }
+      } catch (jobError) {
+        console.error("Error verifying job:", jobError);
+        return res.status(500).json({
+          success: false,
+          error: "Server Error",
+          message: "Failed to verify job information",
+          details:
+            process.env.NODE_ENV === "development"
+              ? jobError.message
+              : undefined,
+        });
+      }
+    }
+
+    // Parse JSON fields safely
+    const parseJsonField = (field) => {
+      if (!field) return [];
+      try {
+        return typeof field === "string" ? JSON.parse(field) : field;
+      } catch (e) {
+        console.error(`Error parsing field: ${field}`, e);
+        return [];
+      }
+    };
+
+    // Create application
+    const applicationData = {
+      fullName: fullName.trim(),
+      email: email.trim().toLowerCase(),
+      phone: phone.trim(),
+      location: location.trim(),
+      jobRole: jobRole.trim(),
+      experience: experience,
+      skills: Array.isArray(skills) ? skills.join(", ") : skills || "",
+      currentCompany: currentCompany?.trim(),
+      currentDesignation: currentDesignation?.trim(),
       expectedSalary: expectedSalary
         ? typeof expectedSalary === "string"
           ? JSON.parse(expectedSalary)
           : expectedSalary
         : {},
-      noticePeriod,
-      job,
-      linkedinProfile,
-      portfolio,
-      github,
-      website,
-      source: source || "website",
-      gender,
-      dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
-      nationality,
-      workAuthorization,
-      languages: languages ? JSON.parse(languages) : [],
-      education: education ? JSON.parse(education) : [],
-      workHistory: workHistory ? JSON.parse(workHistory) : [],
-      certifications: certifications ? JSON.parse(certifications) : [],
-      references: references ? JSON.parse(references) : [],
-      availability,
-      expectedStartDate: expectedStartDate
-        ? new Date(expectedStartDate)
-        : undefined,
+      noticePeriod: noticePeriod?.trim(),
+      job: job || null,
+      linkedinProfile: linkedinProfile?.trim(),
+      portfolio: portfolio?.trim(),
+      github: github?.trim(),
+      website: website?.trim(),
+      source: (source || "website").trim(),
+      gender: gender?.trim(),
+      dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+      nationality: nationality?.trim(),
+      workAuthorization: workAuthorization?.trim(),
+      languages: parseJsonField(languages),
+      education: parseJsonField(education),
+      workHistory: parseJsonField(workHistory),
+      certifications: parseJsonField(certifications),
+      references: parseJsonField(references),
+      availability: availability?.trim(),
+      expectedStartDate: expectedStartDate ? new Date(expectedStartDate) : null,
       salaryNegotiable:
         salaryNegotiable !== undefined
-          ? salaryNegotiable === "true" || salaryNegotiable === true
+          ? typeof salaryNegotiable === "string"
+            ? salaryNegotiable === "true"
+            : Boolean(salaryNegotiable)
           : true,
-
       relocation:
         relocation !== undefined
-          ? relocation === "true" || relocation === true
+          ? typeof relocation === "string"
+            ? relocation === "true"
+            : Boolean(relocation)
           : false,
-
       remoteWork:
         remoteWork !== undefined
-          ? remoteWork === "true" || remoteWork === true
+          ? typeof remoteWork === "string"
+            ? remoteWork === "true"
+            : Boolean(remoteWork)
           : false,
-
-      resume:
-        resumePath && req.file
-          ? {
-              filename: req.file.filename,
-
-              originalName: req.file.originalname,
-
-              mimetype: req.file.mimetype,
-
-              size: req.file.size,
-
-              path: req.file.path,
-            }
-          : null,
-
+      resume: resumeInfo,
       ipAddress: req.ip,
+      userAgent: req.get("User-Agent") || "",
+      status: "submitted", // Use 'submitted' instead of 'new'
+    };
 
-      userAgent: req.get("User-Agent"),
+    console.log("📋 Creating application with data:", {
+      ...applicationData,
+      resume: resumeInfo ? "[File info available]" : "No resume",
     });
 
-    await application.save();
+    const application = new Application(applicationData);
 
-    // Populate job information for response
+    // Save the application to the database
+    try {
+      console.log("💾 Saving application to database...");
+      console.log("📊 Model:", application.constructor.modelName);
+      console.log("🗄️ Collection:", application.collection.name);
 
-    await application.populate("job", "title company location type");
+      const startTime = Date.now();
+      await application.save();
+      const saveTime = Date.now() - startTime;
 
-    // Send confirmation email (async, don't wait for it)
+      console.log("✅ Application saved successfully!");
+      console.log("🆔 Application ID:", application._id);
+      console.log("⏱️ Save time:", saveTime, "ms");
+      console.log("📊 Collection:", application.constructor.modelName);
+      console.log("🗄️ Database:", mongoose.connection.name);
+      console.log("👤 Applicant:", application.fullName);
+      console.log("📧 Email:", application.email);
 
-    sendApplicationEmail(application).catch((error) => {
-      console.error("Error sending application email:", error);
-    });
+      // Verify the application was actually saved by trying to retrieve it
+      console.log("🔍 Verifying application in database...");
+      const verifyApplication = await Application.findById(application._id);
+      if (verifyApplication) {
+        console.log(
+          "✅ Verification successful: Application found in database",
+        );
+        console.log("👤 Verified name:", verifyApplication.fullName);
+        console.log("📧 Verified email:", verifyApplication.email);
+      } else {
+        console.log(
+          "❌ Verification failed: Application not found in database after save",
+        );
+        console.log(
+          "🚨 CRITICAL: Save operation appeared successful but document not found!",
+        );
+      }
 
-    res.status(201).json({
-      success: true,
+      // Additional verification - count documents in collection
+      const applicationCount = await Application.countDocuments();
+      console.log(
+        "📊 Total applications in database after save:",
+        applicationCount,
+      );
 
-      message:
-        "Your application has been submitted successfully. We will review your profile and contact you soon.",
+      console.log("🎉 Application submission process completed successfully");
+    } catch (saveError) {
+      console.error("❌ Error saving application to database:", saveError);
+      console.error("🔍 Save Error Details:", {
+        name: saveError.name,
+        message: saveError.message,
+        code: saveError.code,
+        stack: saveError.stack,
+      });
 
-      data: {
-        application: {
-          id: application._id,
+      // Clean up uploaded file if saving to DB fails
+      if (resumeInfo?.path) {
+        try {
+          const fs = await import("fs").then((mod) => mod.promises);
+          await fs.unlink(resumeInfo.path);
+        } catch (cleanupError) {
+          console.error(
+            "Error cleaning up file after DB save error:",
+            cleanupError,
+          );
+        }
+      }
 
-          fullName: application.fullName,
+      // Handle duplicate key errors (e.g., duplicate email for the same job)
+      if (saveError.code === 11000) {
+        return res.status(409).json({
+          success: false,
+          error: "Duplicate Application",
+          message: "You have already applied to this position",
+          details:
+            process.env.NODE_ENV === "development"
+              ? saveError.message
+              : undefined,
+        });
+      }
 
-          email: application.email,
+      // Handle validation errors
+      if (saveError.name === "ValidationError") {
+        const errors = Object.values(saveError.errors).map((err) => ({
+          field: err.path,
+          message: err.message,
+        }));
 
-          jobRole: application.jobRole,
+        return res.status(400).json({
+          success: false,
+          error: "Validation Error",
+          message: "Please correct the following errors",
+          errors,
+        });
+      }
 
-          job: application.job,
+      throw saveError; // Let the catch block handle other errors
+    }
 
-          status: application.status,
+    try {
+      // Populate job information for response
+      await application.populate("job", "title company location type");
 
-          submittedAt: application.createdAt,
+      // Send confirmation email (async, don't wait for it)
+      sendApplicationEmail(application).catch((emailError) => {
+        console.error("Error sending application email:", emailError);
+      });
+
+      // Return success response
+      return res.status(201).json({
+        success: true,
+        message:
+          "Your application has been submitted successfully. We will review your profile and contact you soon.",
+        data: {
+          application: {
+            id: application._id,
+            fullName: application.fullName,
+            email: application.email,
+            jobRole: application.jobRole,
+            job: application.job,
+            status: application.status,
+            submittedAt: application.createdAt,
+          },
         },
-      },
-    });
+      });
+    } catch (populateError) {
+      console.error("Error populating job data:", populateError);
+      // Even if population fails, we still return success since the application was saved
+      return res.status(201).json({
+        success: true,
+        message:
+          "Your application has been submitted successfully. We will review your profile and contact you soon.",
+        data: {
+          application: {
+            id: application._id,
+            fullName: application.fullName,
+            email: application.email,
+            jobRole: application.jobRole,
+            status: application.status,
+            submittedAt: application.createdAt,
+          },
+        },
+      });
+    }
   } catch (error) {
-    console.error("Error submitting application:", error);
-    console.error("Error stack:", error.stack);
-    console.error("Request body:", req.body);
-
-    res.status(500).json({
-      error: "Server Error",
-
-      message: "Failed to submit application",
+    console.error("Error in submitApplication:", {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      code: error.code,
+      requestBody: req.body,
+      file: req.file
+        ? {
+            originalname: req.file.originalname,
+            mimetype: req.file.mimetype,
+            size: req.file.size,
+          }
+        : "No file uploaded",
     });
+
+    // Determine the appropriate status code
+    const statusCode = error.name === "ValidationError" ? 400 : 500;
+
+    // Prepare error response
+    const errorResponse = {
+      success: false,
+      error: error.name || "Server Error",
+      message: error.message || "An unexpected error occurred",
+    };
+
+    // Add more details in development
+    if (process.env.NODE_ENV === "development") {
+      errorResponse.stack = error.stack;
+      if (error.errors) {
+        errorResponse.errors = Object.entries(error.errors).reduce(
+          (acc, [key, value]) => {
+            acc[key] = value.message;
+            return acc;
+          },
+          {},
+        );
+      }
+    }
+
+    return res.status(statusCode).json(errorResponse);
   }
 };
 
@@ -243,6 +489,8 @@ export const submitApplication = async (req, res) => {
 
 export const getAllApplications = async (req, res) => {
   try {
+    console.log("🔍 Getting applications with query:", req.query);
+
     const {
       page = 1,
       limit = 10,
@@ -274,8 +522,8 @@ export const getAllApplications = async (req, res) => {
       filter.experience = {};
       if (minExp) filter.experience.$gte = minExp;
       if (maxExp) filter.experience.$lte = maxExp;
-    } else if (experience) {
-      filter.experience = experience;
+    } else if (req.query.experience) {
+      filter.experience = req.query.experience;
     }
 
     // Salary range filter

@@ -1,13 +1,9 @@
 import express from "express";
-
 import { query, body } from "express-validator";
-
 import multer from "multer";
-
 import path from "path";
-
 import { fileURLToPath } from "url";
-
+import fs from "fs";
 import {
   submitApplication,
   getAllApplications,
@@ -19,47 +15,68 @@ import {
   searchCandidates,
   handleValidationErrors,
 } from "../controllers/applicationController.js";
-
 import auth from "../middleware/auth.js";
+import { ensureUploadsDir, cleanupFile } from "../utils/fileUpload.js";
 
 const router = express.Router();
 
 // Get current directory
-
 const __filename = fileURLToPath(import.meta.url);
-
 const __dirname = path.dirname(__filename);
 
-// Configure multer for file uploads
+// Ensure uploads directory exists
+const uploadsDir = path.join(__dirname, "../uploads/resumes");
+try {
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+    console.log("Created uploads directory:", uploadsDir);
+  }
+} catch (error) {
+  console.error("Failed to create uploads directory:", error);
+  process.exit(1); // Exit if we can't create the uploads directory
+}
 
+// Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, path.join(__dirname, "../uploads/resumes"));
+    try {
+      // Ensure the directory exists for each upload
+      if (!fs.existsSync(uploadsDir)) {
+        console.log("Creating uploads directory:", uploadsDir);
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+      console.log("Using uploads directory:", uploadsDir);
+      cb(null, uploadsDir);
+    } catch (error) {
+      console.error("Error in multer destination:", error);
+      cb(error);
+    }
   },
-
   filename: (req, file, cb) => {
-    // Create unique filename
-
     const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-
-    cb(
-      null,
-
-      file.fieldname + "-" + uniqueSuffix + path.extname(file.originalname),
-    );
+    const ext = path.extname(file.originalname);
+    const filename = "resume-" + uniqueSuffix + ext;
+    console.log("Generated filename:", filename);
+    cb(null, filename);
   },
 });
 
 const fileFilter = (req, file, cb) => {
   // Allowed file types
-
   const allowedTypes = [
     "application/pdf",
-
     "application/msword",
-
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   ];
+
+  // Check if file and mimetype exist
+  if (!file || !file.mimetype) {
+    cb(
+      new Error("Invalid file. Please ensure you are uploading a valid file."),
+      false,
+    );
+    return;
+  }
 
   if (allowedTypes.includes(file.mimetype)) {
     cb(null, true);
@@ -68,7 +85,6 @@ const fileFilter = (req, file, cb) => {
       new Error(
         "Invalid file type. Only PDF, DOC, and DOCX files are allowed.",
       ),
-
       false,
     );
   }
@@ -76,9 +92,46 @@ const fileFilter = (req, file, cb) => {
 
 const upload = multer({
   storage,
+  fileFilter: (req, file, cb) => {
+    console.log("Multer file filter - File object:", {
+      fieldname: file.fieldname,
+      originalname: file.originalname,
+      mimetype: file.mimetype,
+      size: file.size,
+    });
 
-  fileFilter,
+    // Allowed file types
+    const allowedTypes = [
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ];
 
+    // Check if file and mimetype exist
+    if (!file || !file.mimetype) {
+      console.error("File or mimetype is undefined");
+      cb(
+        new Error(
+          "Invalid file. Please ensure you are uploading a valid file.",
+        ),
+        false,
+      );
+      return;
+    }
+
+    if (allowedTypes.includes(file.mimetype)) {
+      console.log("File type is allowed:", file.mimetype);
+      cb(null, true);
+    } else {
+      console.error("File type not allowed:", file.mimetype);
+      cb(
+        new Error(
+          "Invalid file type. Only PDF, DOC, and DOCX files are allowed.",
+        ),
+        false,
+      );
+    }
+  },
   limits: {
     fileSize: 5 * 1024 * 1024, // 5MB limit
   },
@@ -86,46 +139,69 @@ const upload = multer({
 
 // Multer error handling middleware
 const handleMulterError = (err, req, res, next) => {
-  if (err instanceof multer.MulterError) {
-    // A Multer error occurred when uploading
+  if (err) {
+    console.error("File upload error:", err);
+
+    // Clean up any uploaded file if it exists
+    if (req.file?.path) {
+      cleanupFile(req.file.path).catch((cleanupError) => {
+        console.error(
+          "Error cleaning up file after upload error:",
+          cleanupError,
+        );
+      });
+    }
+
+    // Handle different types of errors
     if (err.code === "LIMIT_FILE_SIZE") {
-      return res.status(400).json({
+      return res.status(413).json({
+        success: false,
         error: "File too large",
         message: "File size cannot exceed 5MB",
       });
     }
-    return res.status(400).json({
-      error: "File upload error",
-      message: err.message,
-    });
-  } else if (err) {
-    // An unknown error occurred
-    console.error("Multer error:", err);
+
+    if (err.code === "LIMIT_UNEXPECTED_FILE") {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid file field",
+        message: "Unexpected file field",
+      });
+    }
+
+    // Handle file type errors
+    if (err.message.includes("Invalid file type")) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid file type",
+        message: "Only PDF, DOC, and DOCX files are allowed",
+      });
+    }
+
+    // Default error response
     return res.status(500).json({
-      error: "Server Error",
-      message: "File upload failed",
+      success: false,
+      error: "Upload failed",
+      message:
+        process.env.NODE_ENV === "development"
+          ? err.message
+          : "Failed to upload file",
     });
   }
+
   next();
 };
 
 // POST /api/applications - Submit a new job application
-
 router.post(
   "/",
-
-  upload.single("resume"),
-
-  handleMulterError,
-
+  upload.single("resume"), // Handle file upload
+  handleMulterError, // Handle multer errors
   [
     body("fullName")
       .notEmpty()
-
       .withMessage("Full name is required")
-
       .isLength({ min: 2, max: 100 })
-
       .withMessage("Full name must be between 2 and 100 characters"),
 
     body("email")
