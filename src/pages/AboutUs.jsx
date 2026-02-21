@@ -1,5 +1,6 @@
 import { useEffect } from "react";
-import { motion } from "motion/react";
+import { motion } from "framer-motion";
+import LazyImage from "../components/LazyImage";
 
 const AboutUs = () => {
   useEffect(() => {
@@ -380,89 +381,82 @@ const AboutUs = () => {
             </p>
           </motion.div>
 
-          <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {[
               {
-                name: "Ahmed Al Abdalawy",
-                role: "Founder & CEO",
-                bio: "With over 15 years in travel and tourism, Ahmed leads our vision of excellence and innovation.",
+                name: "Eman Elbaz Abdelrahman Azzam",
+                role: "Sales",
+                bio: "Dedicated sales professional focused on client satisfaction and building lasting relationships.",
                 image: "/images/aboutus/profile1.webp",
-                social: { linkedin: "#", email: "ahmed@abdalawygroup.com" },
               },
               {
-                name: "Sarah Johnson",
-                role: "Operations Manager",
-                bio: "Sarah ensures seamless operations and exceptional client experiences across all our services.",
+                name: "Sameh Ilahi",
+                role: "Sales",
+                bio: "Expert sales consultant with a passion for delivering exceptional service and solutions.",
                 image: "/images/aboutus/profile2.webp",
-                social: { linkedin: "#", email: "sarah@abdalawygroup.com" },
               },
               {
-                name: "Mohammed Al Hassan",
-                role: "Senior Travel Consultant",
-                bio: "Expert in crafting personalized travel experiences and immigration solutions.",
+                name: "Sheik Imam Bundu",
+                role: "Sales",
+                bio: "Results-driven sales specialist committed to exceeding client expectations.",
                 image: "/images/aboutus/profile3.webp",
-                social: { linkedin: "#", email: "mohammed@abdalawygroup.com" },
+              },
+              {
+                name: "Ibtissam Abdalawy",
+                role: "Founder",
+                bio: "Visionary founder leading the company with innovation and excellence in service delivery.",
+                image: "/images/aboutus/profile4.webp",
+              },
+              {
+                name: "Racheal Tracy Mantongo",
+                role: "Sales",
+                bio: "Dynamic sales professional with expertise in client engagement and business growth.",
+                image: "/images/aboutus/profile5.webp",
+              },
+              {
+                name: "Ahmed Neji Hamrouni",
+                role: "Sales Team Leader",
+                bio: "Experienced team leader driving sales excellence and team performance.",
+                image: "/images/aboutus/profile6.webp",
+              },
+              {
+                name: "Mhamed Najem",
+                role: "Sales",
+                bio: "Skilled sales professional dedicated to providing outstanding customer experiences.",
+                image: "/images/aboutus/profile7.webp",
               },
             ].map((member, index) => (
               <motion.div
                 key={index}
-                className="group overflow-hidden rounded-2xl bg-white shadow-lg transition-all duration-300 hover:shadow-2xl"
+                className="group relative text-center"
                 initial={{ opacity: 0, y: 30 }}
                 whileInView={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.2 }}
+                transition={{ delay: index * 0.1 }}
                 viewport={{ once: true }}
-                whileHover={{ y: -10 }}
+                whileHover={{ y: -5 }}
               >
-                <div className="relative overflow-hidden">
-                  <div className="aspect-square overflow-hidden">
-                    <img
+                <div className="relative mx-auto mb-4 h-36 w-36 overflow-hidden rounded-full bg-gradient-to-br from-primary-400 to-secondary-400 p-1 shadow-lg transition-all duration-300 group-hover:scale-105 group-hover:shadow-xl">
+                  <div className="h-full w-full overflow-hidden rounded-full bg-white">
+                    <LazyImage
                       src={member.image}
                       alt={member.name}
-                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
+                      className="h-full w-full object-cover object-[center_25%] transition-transform duration-300 group-hover:scale-110"
                     />
                   </div>
-                  <div className="absolute inset-0 flex items-end bg-gradient-to-t from-black/60 to-transparent p-6 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-                    <div className="text-white">
-                      <div className="flex space-x-3">
-                        <motion.a
-                          href={`mailto:${member.social.email}`}
-                          className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20 transition-colors hover:bg-white/30"
-                          whileHover={{ scale: 1.1 }}
-                        >
-                          <svg
-                            className="h-4 w-4"
-                            fill="currentColor"
-                            viewBox="0 0 20 20"
-                          >
-                            <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
-                            <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
-                          </svg>
-                        </motion.a>
-                        <motion.a
-                          href={member.social.linkedin}
-                          className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20 transition-colors hover:bg-white/30"
-                          whileHover={{ scale: 1.1 }}
-                        >
-                          <svg
-                            className="h-4 w-4"
-                            fill="currentColor"
-                            viewBox="0 0 20 20"
-                          >
-                            <path d="M16.338 16.338H13.67V12.16c0-.995-.017-2.277-1.387-2.277-1.39 0-1.601 1.086-1.601 2.207v4.248H8.014v-8.59h2.559v1.174h.037c.356-.675 1.227-1.387 2.526-1.387 2.703 0 3.203 1.778 3.203 4.092v4.711zM5.005 6.575a1.548 1.548 0 11-.003-3.096 1.548 1.548 0 01.003 3.096zm-1.337 9.763H6.34v-8.59H3.667v8.59zM17.668 1H2.328C1.595 1 1 1.581 1 2.298v15.403C1 18.418 1.595 19 2.328 19h15.34c.734 0 1.332-.582 1.332-1.299V2.298C19 1.581 18.402 1 17.668 1z" />
-                          </svg>
-                        </motion.a>
-                      </div>
-                    </div>
-                  </div>
                 </div>
-                <div className="p-6">
-                  <h3 className="mb-2 text-xl font-bold text-gray-800">
+
+                <div className="space-y-2">
+                  <h3 className="text-lg font-bold text-gray-800 transition-colors duration-300 group-hover:text-primary-600">
                     {member.name}
                   </h3>
-                  <p className="mb-3 font-medium text-primary-600">
-                    {member.role}
-                  </p>
-                  <p className="text-sm leading-relaxed text-gray-600">
+                  <div className="flex items-center justify-center space-x-2">
+                    <div className="h-1 w-8 rounded-full bg-gradient-to-r from-primary-400 to-secondary-400"></div>
+                    <p className="text-sm font-semibold text-primary-600">
+                      {member.role}
+                    </p>
+                    <div className="h-1 w-8 rounded-full bg-gradient-to-r from-secondary-400 to-primary-400"></div>
+                  </div>
+                  <p className="mx-auto max-w-xs text-sm leading-relaxed text-gray-600">
                     {member.bio}
                   </p>
                 </div>

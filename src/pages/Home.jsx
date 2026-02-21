@@ -1,10 +1,67 @@
 import Banner from "../components/Banner";
 import { Swiper, SwiperSlide } from "swiper/react";
 import { Autoplay, EffectFade } from "swiper/modules";
-import { motion } from "motion/react";
-import { useEffect } from "react";
+import { motion } from "framer-motion";
+import { useEffect, useState, useRef } from "react";
+import LazyImage from "../components/LazyImage";
 import "swiper/css";
 import "swiper/css/effect-fade";
+
+const OptimizedVideo = ({ src, poster, videoId, className }) => {
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [isInView, setIsInView] = useState(false);
+  const videoRef = useRef(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsInView(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.1 },
+    );
+
+    if (videoRef.current) {
+      observer.observe(videoRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (isInView && videoRef.current && !isLoaded) {
+      videoRef.current.load();
+    }
+  }, [isInView, isLoaded]);
+
+  const handleCanPlay = () => {
+    setIsLoaded(true);
+    if (videoRef.current) {
+      videoRef.current
+        .play()
+        .catch((err) => console.log("Autoplay failed:", err));
+    }
+  };
+
+  return (
+    <video
+      ref={videoRef}
+      className={className}
+      autoPlay={isLoaded}
+      muted
+      loop
+      playsInline
+      preload="none"
+      poster={poster}
+      onCanPlay={handleCanPlay}
+      onLoadStart={() => console.log(`Video ${videoId} loading started`)}
+    >
+      <source src={src} type="video/mp4" />
+    </video>
+  );
+};
 
 const Home = () => {
   useEffect(() => {
@@ -18,7 +75,7 @@ const Home = () => {
           modules={[Autoplay, EffectFade]}
           effect="fade"
           autoplay={{
-            delay: 5000,
+            delay: 3000,
             disableOnInteraction: false,
           }}
           loop={true}
@@ -28,28 +85,25 @@ const Home = () => {
         >
           <SwiperSlide>
             <div className="relative h-full w-full">
-              <video
+              <OptimizedVideo
+                src="/images/videos/video1.webm"
+                poster="/images/videos/poster1.jpg"
+                videoId="video1"
                 className="absolute inset-0 h-full w-full object-cover"
-                autoPlay
-                muted
-                loop
-                playsInline
-              >
-                <source src="/images/videos/video1.mp4" type="video/mp4" />
-              </video>
+              />
               <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/40 to-black/60"></div>
               <div className="absolute inset-0 flex items-center justify-center">
                 <motion.div
                   className="mx-auto max-w-4xl px-4 text-center text-white"
                   initial={{ opacity: 0, y: 50 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 1, delay: 0.5 }}
+                  transition={{ duration: 0.6, delay: 0.3 }}
                 >
                   <motion.h1
                     className="mb-4 text-3xl font-bold md:text-4xl lg:text-5xl xl:text-6xl"
                     initial={{ opacity: 0, y: 30 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 1, delay: 0.8 }}
+                    transition={{ duration: 0.6, delay: 0.5 }}
                   >
                     Discover Your
                     <br />
@@ -59,7 +113,7 @@ const Home = () => {
                     className="mb-6 text-lg text-white/90 md:text-xl lg:text-2xl"
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 1, delay: 1.1 }}
+                    transition={{ duration: 0.6, delay: 0.7 }}
                   >
                     Embark on extraordinary journeys with our premium travel
                     services
@@ -68,7 +122,7 @@ const Home = () => {
                     className="rounded-full bg-secondary-500 px-8 py-4 text-lg font-semibold text-white transition-all duration-300 hover:scale-105 hover:bg-secondary-600 hover:shadow-xl"
                     initial={{ opacity: 0, scale: 0.8 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    transition={{ duration: 1, delay: 1.4 }}
+                    transition={{ duration: 0.6, delay: 0.9 }}
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={() =>
@@ -87,28 +141,25 @@ const Home = () => {
 
           <SwiperSlide>
             <div className="relative h-full w-full">
-              <video
+              <OptimizedVideo
+                src="/images/videos/video2.webm"
+                poster="/images/videos/poster2.jpg"
+                videoId="video2"
                 className="absolute inset-0 h-full w-full object-cover"
-                autoPlay
-                muted
-                loop
-                playsInline
-              >
-                <source src="/images/videos/video2.mp4" type="video/mp4" />
-              </video>
+              />
               <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/40 to-black/60"></div>
               <div className="absolute inset-0 flex items-center justify-center">
                 <motion.div
                   className="mx-auto max-w-4xl px-4 text-center text-white"
                   initial={{ opacity: 0, y: 50 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 1, delay: 0.5 }}
+                  transition={{ duration: 0.6, delay: 0.3 }}
                 >
                   <motion.h1
                     className="mb-4 text-3xl font-bold md:text-4xl lg:text-5xl xl:text-6xl"
                     initial={{ opacity: 0, y: 30 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 1, delay: 0.8 }}
+                    transition={{ duration: 0.6, delay: 0.5 }}
                   >
                     Build Your Future
                     <br />
@@ -118,7 +169,7 @@ const Home = () => {
                     className="mb-6 text-lg text-white/90 md:text-xl lg:text-2xl"
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 1, delay: 1.1 }}
+                    transition={{ duration: 0.6, delay: 0.7 }}
                   >
                     Elevate your global journey with trusted immigration
                     solutions
@@ -127,7 +178,7 @@ const Home = () => {
                     className="rounded-full bg-secondary-500 px-8 py-4 text-lg font-semibold text-white transition-all duration-300 hover:scale-105 hover:bg-secondary-600 hover:shadow-xl"
                     initial={{ opacity: 0, scale: 0.8 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    transition={{ duration: 1, delay: 1.4 }}
+                    transition={{ duration: 0.6, delay: 0.9 }}
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={() =>
@@ -146,28 +197,25 @@ const Home = () => {
 
           <SwiperSlide>
             <div className="relative h-full w-full">
-              <video
+              <OptimizedVideo
+                src="/images/videos/video3.webm"
+                poster="/images/videos/poster3.jpg"
+                videoId="video3"
                 className="absolute inset-0 h-full w-full object-cover"
-                autoPlay
-                muted
-                loop
-                playsInline
-              >
-                <source src="/images/videos/video3.mp4" type="video/mp4" />
-              </video>
+              />
               <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/40 to-black/60"></div>
               <div className="absolute inset-0 flex items-center justify-center">
                 <motion.div
                   className="mx-auto max-w-4xl px-4 text-center text-white"
                   initial={{ opacity: 0, y: 50 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 1, delay: 0.5 }}
+                  transition={{ duration: 0.6, delay: 0.3 }}
                 >
                   <motion.h1
                     className="mb-4 text-3xl font-bold md:text-4xl lg:text-5xl xl:text-6xl"
                     initial={{ opacity: 0, y: 30 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 1, delay: 0.8 }}
+                    transition={{ duration: 0.6, delay: 0.5 }}
                   >
                     Enjoy Every
                     <br />
@@ -179,7 +227,7 @@ const Home = () => {
                     className="mb-6 text-lg text-white/90 md:text-xl lg:text-2xl"
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 1, delay: 1.1 }}
+                    transition={{ duration: 0.6, delay: 0.7 }}
                   >
                     Indulge in curated holiday experiences tailored to your
                     dreams
@@ -188,7 +236,7 @@ const Home = () => {
                     className="rounded-full bg-secondary-500 px-8 py-4 text-lg font-semibold text-white transition-all duration-300 hover:scale-105 hover:bg-secondary-600 hover:shadow-xl"
                     initial={{ opacity: 0, scale: 0.8 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    transition={{ duration: 1, delay: 1.4 }}
+                    transition={{ duration: 0.6, delay: 0.9 }}
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={() =>
@@ -207,28 +255,25 @@ const Home = () => {
 
           <SwiperSlide>
             <div className="relative h-full w-full">
-              <video
+              <OptimizedVideo
+                src="/images/videos/video4.webm"
+                poster="/images/videos/poster4.jpg"
+                videoId="video4"
                 className="absolute inset-0 h-full w-full object-cover"
-                autoPlay
-                muted
-                loop
-                playsInline
-              >
-                <source src="/images/videos/video4.mp4" type="video/mp4" />
-              </video>
+              />
               <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/40 to-black/60"></div>
               <div className="absolute inset-0 flex items-center justify-center">
                 <motion.div
                   className="mx-auto max-w-4xl px-4 text-center text-white"
                   initial={{ opacity: 0, y: 50 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 1, delay: 0.5 }}
+                  transition={{ duration: 0.6, delay: 0.3 }}
                 >
                   <motion.h1
                     className="mb-4 text-3xl font-bold md:text-4xl lg:text-5xl xl:text-6xl"
                     initial={{ opacity: 0, y: 30 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 1, delay: 0.8 }}
+                    transition={{ duration: 0.6, delay: 0.5 }}
                   >
                     Streamline Your
                     <br />
@@ -240,7 +285,7 @@ const Home = () => {
                     className="mb-6 text-lg text-white/90 md:text-xl lg:text-2xl"
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 1, delay: 1.1 }}
+                    transition={{ duration: 0.6, delay: 0.7 }}
                   >
                     Navigate complex paperwork with our expert clearing services
                   </motion.p>
@@ -248,7 +293,7 @@ const Home = () => {
                     className="rounded-full bg-secondary-500 px-8 py-4 text-lg font-semibold text-white transition-all duration-300 hover:scale-105 hover:bg-secondary-600 hover:shadow-xl"
                     initial={{ opacity: 0, scale: 0.8 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    transition={{ duration: 1, delay: 1.4 }}
+                    transition={{ duration: 0.6, delay: 0.9 }}
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={() =>
@@ -405,7 +450,7 @@ const Home = () => {
               <div className="relative">
                 <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-secondary-400/20 to-primary-400/20 blur-xl"></div>
                 <div className="relative rounded-2xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm sm:p-6 md:p-8">
-                  <img
+                  <LazyImage
                     src="/images/aboutus/aboutus.webp"
                     alt="Abdalawy Services Logo"
                     className="mx-auto w-full max-w-[200px] transform transition-transform duration-300 hover:scale-105 sm:max-w-xs md:max-w-sm lg:mx-0"
@@ -488,7 +533,7 @@ const Home = () => {
                   transition={{ delay: index * 0.1 }}
                   viewport={{ once: true }}
                 >
-                  <img
+                  <LazyImage
                     src={service.img}
                     alt={service.title}
                     className="h-40 w-full rounded-xl object-cover shadow-lg sm:h-48 md:h-52"
@@ -678,7 +723,7 @@ const Home = () => {
                   transition={{ delay: index * 0.1 }}
                   viewport={{ once: true }}
                 >
-                  <img
+                  <LazyImage
                     src={service.img}
                     alt={service.title}
                     className="h-40 w-full rounded-xl object-cover shadow-lg sm:h-48 md:h-52"
@@ -767,7 +812,7 @@ const Home = () => {
                   transition={{ delay: index * 0.1 }}
                   viewport={{ once: true }}
                 >
-                  <img
+                  <LazyImage
                     src={service.img}
                     alt={service.title}
                     className="h-40 w-full rounded-xl object-cover shadow-lg sm:h-48 md:h-52"
@@ -957,7 +1002,7 @@ const Home = () => {
                   transition={{ delay: index * 0.1 }}
                   viewport={{ once: true }}
                 >
-                  <img
+                  <LazyImage
                     src={service.img}
                     alt={service.title}
                     className="h-40 w-full rounded-xl object-cover shadow-lg sm:h-48 md:h-52"

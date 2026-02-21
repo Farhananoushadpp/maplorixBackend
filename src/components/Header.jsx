@@ -88,13 +88,13 @@ const Header = () => {
               >
                 Contact Us
               </Link>
-              <Link
-                to="#"
-                target="_blank"
-                className="transition-all duration-300 ease-in hover:scale-105"
+              <button
+                className="cursor-not-allowed opacity-50 transition-all duration-300 ease-in hover:scale-105"
+                disabled
+                title="Coming Soon"
               >
                 Company Brochure
-              </Link>
+              </button>
             </div>
           </nav>
           <div className="col-span-6 flex justify-end md:hidden">
@@ -165,14 +165,14 @@ const Header = () => {
               >
                 Contact Us
               </Link>
-              <Link
-                className="block py-3 text-base font-medium text-primary-500 transition-colors hover:text-secondary-500"
-                to="#"
-                target="_blank"
+              <button
+                className="block cursor-not-allowed py-3 text-base font-medium text-primary-500 opacity-50 transition-colors hover:text-secondary-500"
+                disabled
+                title="Coming Soon"
                 onClick={closeMobileMenu}
               >
                 Company Brochure
-              </Link>
+              </button>
             </nav>
           </div>
         </div>

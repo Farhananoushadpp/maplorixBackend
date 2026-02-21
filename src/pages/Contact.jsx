@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { motion } from "motion/react";
+import { motion } from "framer-motion";
 
 const scalevariants = {
   hidden: { opacity: 0, scale: 0.8 },

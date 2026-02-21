@@ -1,6 +1,6 @@
 import { Swiper, SwiperSlide } from "swiper/react";
 import { Autoplay, EffectFade } from "swiper/modules";
-import { motion } from "motion/react";
+import { motion } from "framer-motion";
 import "swiper/css";
 import "swiper/css/effect-fade";
 
@@ -16,7 +16,7 @@ const slides = [
     description:
       "Embark on extraordinary journeys with our premium travel and tourism services. From exotic destinations to cultural experiences, we craft unforgettable adventures tailored to your dreams.",
     button: "Start Your Journey",
-    video: "/images/videos/video1.mp4",
+    video: "/images/videos/video1.webp",
     fallback: "/images/banners/tourism.webp",
     service: "Travel and Tourism Services",
     features: [
@@ -37,7 +37,7 @@ const slides = [
     description:
       "Elevate your global journey with trusted immigration solutions that guide, support, and open new opportunities worldwide.",
     button: "Contact Us",
-    video: "/images/videos/video2.mp4",
+    video: "/images/videos/video2.webm",
     fallback: "/images/banners/emmigration.webp",
     service: "Emmigration Services",
   },
@@ -52,7 +52,7 @@ const slides = [
     description:
       "Upgrade your holiday moments with thoughtfully planned travel services that relax, inspire, and leave lasting memories.",
     button: "Contact Us",
-    video: "/images/videos/video3.mp4",
+    video: "/images/videos/video3.webm",
     fallback: "/images/banners/holidays.webp",
     service: "Holiday Packages",
   },
@@ -67,7 +67,7 @@ const slides = [
     description:
       "Streamline your approvals with reliable document clearing services that save time, reduce effort, and ensure compliance.",
     button: "Contact Us",
-    video: "/images/videos/video4.mp4",
+    video: "/images/videos/video4.webm",
     fallback: "/images/banners/document_clearing.webp",
     service: "Document Clearing Services",
   },
