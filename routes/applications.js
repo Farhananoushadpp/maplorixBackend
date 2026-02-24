@@ -67,6 +67,8 @@ const fileFilter = (req, file, cb) => {
     "application/pdf",
     "application/msword",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "text/plain", // Allow text files for testing
+    "application/octet-stream", // Allow generic binary files
   ];
 
   // Check if file and mimetype exist
@@ -195,287 +197,31 @@ const handleMulterError = (err, req, res, next) => {
 // POST /api/applications - Submit a new job application
 router.post(
   "/",
-  upload.single("resume"), // Handle file upload
-  handleMulterError, // Handle multer errors
+  upload.single("resume"), // Add multer middleware to handle file uploads
+  (req, res, next) => {
+    console.log("🎯 ROUTE HIT: POST /api/applications");
+    console.log("📝 Request body keys:", Object.keys(req.body));
+    console.log("📎 File uploaded:", req.file ? "Yes" : "No");
+    if (req.file) {
+      console.log("📎 File details:", {
+        originalname: req.file.originalname,
+        filename: req.file.filename,
+        size: req.file.size,
+        mimetype: req.file.mimetype,
+      });
+    }
+    next();
+  },
+  // Add minimal validation first
   [
-    body("fullName")
-      .notEmpty()
-      .withMessage("Full name is required")
-      .isLength({ min: 2, max: 100 })
-      .withMessage("Full name must be between 2 and 100 characters"),
-
-    body("email")
-      .isEmail()
-
-      .withMessage("Please enter a valid email address")
-
-      .normalizeEmail(),
-
-    body("phone")
-      .notEmpty()
-
-      .withMessage("Phone number is required")
-
-      .isLength({ min: 10, max: 20 })
-
-      .withMessage("Phone number must be between 10 and 20 characters"),
-
-    body("location")
-      .notEmpty()
-
-      .withMessage("Location is required")
-
-      .isLength({ min: 2, max: 100 })
-
-      .withMessage("Location must be between 2 and 100 characters"),
-
-    body("jobRole")
-      .notEmpty()
-
-      .withMessage("Job role is required")
-
-      .isLength({ min: 2, max: 100 })
-
-      .withMessage("Job role must be between 2 and 100 characters"),
-
-    body("experience")
-      .isIn([
-        "fresher",
-
-        "1-3",
-
-        "3-5",
-
-        "5+",
-
-        "10+",
-
-        "Entry Level",
-
-        "Mid Level",
-
-        "Senior Level",
-
-        "Executive",
-      ])
-
-      .withMessage("Invalid experience level"),
-
-    body("skills")
-      .optional()
-
-      .isLength({ max: 1000 })
-
-      .withMessage("Skills cannot exceed 1000 characters"),
-
-    body("currentCompany")
-      .optional()
-
-      .isLength({ max: 100 })
-
-      .withMessage("Current company cannot exceed 100 characters"),
-
-    body("currentDesignation")
-      .optional()
-
-      .isLength({ max: 100 })
-
-      .withMessage("Current designation cannot exceed 100 characters"),
-
-    body("expectedSalary.min")
-      .optional()
-
-      .isNumeric()
-
-      .withMessage("Minimum expected salary must be a number"),
-
-    body("expectedSalary.max")
-      .optional()
-
-      .isNumeric()
-
-      .withMessage("Maximum expected salary must be a number"),
-
-    body("expectedSalary.currency")
-      .optional()
-
-      .isIn(["USD", "EUR", "GBP", "CAD", "AUD", "INR"])
-
-      .withMessage("Invalid currency"),
-
-    body("noticePeriod")
-      .optional()
-
-      .isIn([
-        "immediate",
-
-        "15 days",
-
-        "30 days",
-
-        "60 days",
-
-        "90 days",
-
-        "negotiable",
-      ])
-
-      .withMessage("Invalid notice period"),
-
-    body("job").optional().isMongoId().withMessage("Invalid job ID"),
-
-    body("coverLetter")
-      .optional()
-
-      .isLength({ max: 5000 })
-
-      .withMessage("Cover letter cannot exceed 5000 characters"),
-
-    body("linkedinProfile")
-      .optional()
-
-      .isURL()
-
-      .withMessage("Please enter a valid LinkedIn profile URL"),
-
-    body("portfolio")
-      .optional()
-
-      .isURL()
-
-      .withMessage("Please enter a valid portfolio URL"),
-
-    body("github")
-      .optional()
-
-      .isURL()
-
-      .withMessage("Please enter a valid GitHub profile URL"),
-
-    body("website")
-      .optional()
-
-      .isURL()
-
-      .withMessage("Please enter a valid website URL"),
-
-    body("source")
-      .optional()
-
-      .isIn([
-        "website",
-
-        "linkedin",
-
-        "referral",
-
-        "job-board",
-
-        "social-media",
-
-        "employee-referral",
-
-        "campus-drive",
-
-        "walk-in",
-
-        "other",
-      ])
-
-      .withMessage("Invalid source"),
-
-    body("gender")
-      .optional()
-
-      .isIn(["male", "female", "other", "prefer-not-to-say"])
-
-      .withMessage("Invalid gender"),
-
-    body("dateOfBirth")
-      .optional()
-
-      .isISO8601()
-
-      .withMessage("Please enter a valid date of birth"),
-
-    body("nationality")
-      .optional()
-
-      .isLength({ max: 100 })
-
-      .withMessage("Nationality cannot exceed 100 characters"),
-
-    body("workAuthorization")
-      .optional()
-
-      .isIn([
-        "citizen",
-
-        "permanent-resident",
-
-        "work-permit",
-
-        "student-visa",
-
-        "tourist-visa",
-
-        "other",
-      ])
-
-      .withMessage("Invalid work authorization"),
-
-    body("availability")
-      .optional()
-
-      .isIn([
-        "immediate",
-
-        "1-week",
-
-        "2-weeks",
-
-        "1-month",
-
-        "2-months",
-
-        "3-months",
-
-        "negotiable",
-      ])
-
-      .withMessage("Invalid availability"),
-
-    body("expectedStartDate")
-      .optional()
-
-      .isISO8601()
-
-      .withMessage("Please enter a valid expected start date"),
-
-    body("salaryNegotiable")
-      .optional()
-
-      .isBoolean()
-
-      .withMessage("Salary negotiable must be a boolean"),
-
-    body("relocation")
-      .optional()
-
-      .isBoolean()
-
-      .withMessage("Relocation must be a boolean"),
-
-    body("remoteWork")
-      .optional()
-
-      .isBoolean()
-
-      .withMessage("Remote work must be a boolean"),
+    body("fullName").notEmpty().withMessage("Full name is required"),
+    body("email").isEmail().withMessage("Valid email required"),
+    body("phone").notEmpty().withMessage("Phone required"),
+    body("location").notEmpty().withMessage("Location required"),
+    body("jobRole").notEmpty().withMessage("Job role required"),
+    body("experience").notEmpty().withMessage("Experience required"),
   ],
-
   handleValidationErrors,
-
   submitApplication,
 );
 

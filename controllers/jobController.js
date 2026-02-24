@@ -30,10 +30,10 @@ export const getAllJobsForDashboard = async (req, res) => {
   try {
     console.log("📊 Getting all jobs for Dashboard");
 
-    // Get all jobs sorted by creation date (newest first)
-    const jobs = await Job.find({ isActive: true }).sort({ createdAt: -1 });
+    // Get ONLY user-posted jobs for dashboard management
+    const jobs = await Job.find({ postedBy: "user" }).sort({ createdAt: -1 });
 
-    // Transform jobs to match exact response format
+    // Transform jobs to match exact response format with all fields
     const transformedJobs = jobs.map((job) => ({
       _id: job._id,
       title: job.title,
@@ -42,6 +42,12 @@ export const getAllJobsForDashboard = async (req, res) => {
       type: job.type,
       postedBy: job.postedBy, // Keep as string ("user" or "admin")
       description: job.description,
+      salary: job.salary,
+      requirements: job.requirements,
+      experience: job.experience,
+      category: job.category,
+      isActive: job.isActive,
+      applicationCount: job.applicationCount,
       createdAt: job.createdAt,
     }));
 
@@ -58,13 +64,57 @@ export const getAllJobsForDashboard = async (req, res) => {
   }
 };
 
+// Get jobs for public feed page (admin-posted only)
+export const getFeedJobs = async (req, res) => {
+  try {
+    console.log("📊 Getting jobs for public feed page (admin-posted only)");
+
+    // Get only admin-posted jobs that are active, sorted by creation date (newest first)
+    const jobs = await Job.find({
+      isActive: true,
+      postedBy: "admin", // Only admin-posted jobs
+    }).sort({ createdAt: -1 });
+
+    // Transform jobs to match feed page format
+    const transformedJobs = jobs.map((job) => ({
+      _id: job._id,
+      title: job.title,
+      company: job.company,
+      location: job.location,
+      type: job.type,
+      postedBy: job.postedBy,
+      description: job.description,
+      salary: job.salary,
+      requirements: job.requirements,
+      experience: job.experience,
+      category: job.category,
+      isActive: job.isActive,
+      applicationCount: job.applicationCount,
+      createdAt: job.createdAt,
+      postedDate: job.postedDate,
+    }));
+
+    res.json({
+      success: true,
+      jobs: transformedJobs,
+      count: transformedJobs.length,
+    });
+  } catch (error) {
+    console.error("Error fetching feed jobs:", error);
+    res.status(500).json({
+      error: "Server Error",
+      message: "Failed to fetch feed jobs",
+    });
+  }
+};
+
 // Get all jobs for Dashboard (simplified version)
 export const getDashboardJobs = async (req, res) => {
   try {
     console.log("📊 Getting all jobs for Dashboard");
 
-    // Get all active jobs sorted by creation date (newest first)
-    const jobs = await Job.find({ isActive: true })
+    // Get ONLY user-posted jobs for dashboard management
+    const jobs = await Job.find({ postedBy: "user" })
       .sort({ createdAt: -1 })
       .populate("postedBy", "firstName lastName email");
 
