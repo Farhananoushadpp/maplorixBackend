@@ -114,9 +114,7 @@ export const getDashboardJobs = async (req, res) => {
     console.log("📊 Getting all jobs for Dashboard");
 
     // Get ONLY user-posted jobs for dashboard management
-    const jobs = await Job.find({ postedBy: "user" })
-      .sort({ createdAt: -1 })
-      .populate("postedBy", "firstName lastName email");
+    const jobs = await Job.find({ postedBy: "user" }).sort({ createdAt: -1 });
 
     // Transform to match the required data model
     const transformedJobs = jobs.map((job) => ({
@@ -289,9 +287,7 @@ export const getAllJobs = async (req, res) => {
 
         .skip(skip)
 
-        .limit(parseInt(limit))
-
-        .populate("postedBy", "firstName lastName email"),
+        .limit(parseInt(limit)),
 
       Job.countDocuments(filter),
     ]);
@@ -331,8 +327,7 @@ export const getFeaturedJobs = async (req, res) => {
 
     const jobs = await Job.find({ featured: true, isActive: true })
       .sort({ createdAt: -1 })
-      .limit(parseInt(limit))
-      .populate("postedBy", "firstName lastName email");
+      .limit(parseInt(limit));
 
     res.json({
       success: true,
@@ -359,8 +354,7 @@ export const getRecentJobs = async (req, res) => {
 
     const jobs = await Job.find({ isActive: true })
       .sort({ createdAt: -1 })
-      .limit(parseInt(limit))
-      .populate("postedBy", "firstName lastName email");
+      .limit(parseInt(limit));
 
     res.json({
       success: true,
@@ -392,11 +386,7 @@ export const getJobById = async (req, res) => {
       });
     }
 
-    const job = await Job.findById(id).populate(
-      "postedBy",
-
-      "firstName lastName email",
-    );
+    const job = await Job.findById(id);
 
     if (!job) {
       return res.status(404).json({
@@ -643,7 +633,7 @@ export const updateJob = async (req, res) => {
     }
 
     // Populate user information if needed
-    await job.populate("postedBy", "firstName lastName email");
+    // No populate needed since postedBy is a string, not a reference
 
     res.json({
       success: true,

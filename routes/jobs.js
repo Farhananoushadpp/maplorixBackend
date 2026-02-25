@@ -20,8 +20,8 @@ import auth from "../middleware/auth.js";
 
 const router = express.Router();
 
-// GET /api/jobs - Get all jobs for Dashboard (no auth required)
-router.get("/", getAllJobsForDashboard);
+// GET /api/jobs - Get all jobs (for frontend feed)
+router.get("/", getAllJobs);
 
 // GET /api/jobs/feed - Get jobs for public feed page (admin-posted only)
 router.get("/feed", getFeedJobs);

@@ -55,7 +55,7 @@ router.post(
     body("role")
       .optional()
 
-      .isIn(["admin", "hr", "recruiter", "manager"])
+      .isIn(["admin", "hr", "recruiter", "manager", "user"])
 
       .withMessage("Invalid role"),
 
