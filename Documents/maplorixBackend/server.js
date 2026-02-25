@@ -15,6 +15,7 @@ import contactsRouter from "./routes/contacts.js";
 import applicationsRouter from "./routes/applications.js";
 import authRouter from "./routes/auth.js";
 import adminRouter from "./routes/admin.js";
+import pagesRouter from "./routes/pages.js";
 
 // Load environment variables
 dotenv.config();
@@ -88,6 +89,7 @@ app.use("/api/contacts", contactsRouter);
 app.use("/api/applications", applicationsRouter);
 app.use("/api/auth", authRouter);
 app.use("/api/admin", adminRouter);
+app.use("/api/pages", pagesRouter);
 
 // Health check endpoint
 app.get("/health", (req, res) => {
