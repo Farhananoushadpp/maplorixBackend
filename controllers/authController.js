@@ -103,6 +103,11 @@ export const register = async (req, res) => {
           name: contact.name,
           email: contact.email,
         },
+        routing: {
+          redirectTo: user.role === "admin" ? "/admin/dashboard" : "/website",
+          role: user.role,
+          isAdmin: user.role === "admin",
+        },
       },
     });
   } catch (error) {
@@ -161,8 +166,17 @@ export const login = async (req, res) => {
     }
 
     // Compare password
-    const isPasswordValid = await user.comparePassword(password);
-    console.log("  Password valid:", isPasswordValid);
+    let isPasswordValid;
+    try {
+      isPasswordValid = await user.comparePassword(password);
+      console.log("  Password valid:", isPasswordValid);
+    } catch (error) {
+      console.error("  Password comparison error:", error);
+      return res.status(500).json({
+        error: "Server Error",
+        message: "Password verification failed",
+      });
+    }
 
     if (!isPasswordValid) {
       console.log("❌ Password comparison failed");
@@ -190,10 +204,33 @@ export const login = async (req, res) => {
       data: {
         user,
         token,
+        routing: {
+          redirectTo: user.role === "admin" ? "/admin/dashboard" : "/website",
+          role: user.role,
+          isAdmin: user.role === "admin",
+        },
       },
     });
   } catch (error) {
     console.error("Error logging in user:", error);
+    console.error("Error stack:", error.stack);
+    console.error("Request body:", req.body);
+
+    // Check for specific error types
+    if (error.name === "ValidationError") {
+      return res.status(400).json({
+        error: "Validation Error",
+        message: error.message,
+      });
+    }
+
+    if (error.name === "CastError") {
+      return res.status(400).json({
+        error: "Invalid Data",
+        message: "Invalid email format",
+      });
+    }
+
     res.status(500).json({
       error: "Server Error",
       message: "Failed to login",
@@ -306,7 +343,7 @@ export const getProfile = async (req, res) => {
 // Update user profile
 export const updateProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId);
+    const user = await User.findById(req.user._id);
 
     if (!user || !user.isActive) {
       return res.status(401).json({
@@ -337,7 +374,7 @@ export const updateProfile = async (req, res) => {
 // Change password
 export const changePassword = async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId).select("+password");
+    const user = await User.findById(req.user._id).select("+password");
 
     if (!user || !user.isActive) {
       return res.status(401).json({

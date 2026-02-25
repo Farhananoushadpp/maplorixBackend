@@ -35,15 +35,15 @@ const jobSchema = new mongoose.Schema(
     },
     description: {
       type: String,
-      required: [true, "Job description is required"],
       trim: true,
       maxlength: [5000, "Job description cannot exceed 5000 characters"],
+      default: "",
     },
     requirements: {
       type: String,
-      required: [true, "Job requirements are required"],
       trim: true,
       maxlength: [3000, "Job requirements cannot exceed 3000 characters"],
+      default: "",
     },
     salary: {
       min: {
@@ -56,13 +56,12 @@ const jobSchema = new mongoose.Schema(
       },
       currency: {
         type: String,
-        default: "USD",
-        enum: ["USD", "EUR", "GBP", "CAD", "AUD", "INR"],
+        default: "AED",
+        enum: ["USD", "EUR", "GBP", "CAD", "AUD", "INR", "AED"],
       },
     },
     category: {
       type: String,
-      required: [true, "Job category is required"],
       enum: [
         "Technology",
         "Healthcare",
@@ -78,10 +77,10 @@ const jobSchema = new mongoose.Schema(
         "Legal",
         "Other",
       ],
+      default: "Other",
     },
     experience: {
       type: String,
-      required: [true, "Experience level is required"],
       enum: [
         "Entry Level",
         "Mid Level",
@@ -89,28 +88,57 @@ const jobSchema = new mongoose.Schema(
         "Executive",
         "Fresher",
       ],
+      default: "Entry Level",
     },
     jobRole: {
       type: String,
-      required: [true, "Job role is required"],
       trim: true,
       maxlength: [100, "Job role cannot exceed 100 characters"],
+      default: function () {
+        return this.title;
+      },
     },
     applicationDeadline: {
       type: Date,
       default: () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
     },
-    isActive: {
-      type: Boolean,
-      default: true,
+    workLocationType: {
+      type: String,
+      enum: ["On-site", "Remote", "Hybrid"],
+      default: "On-site",
+    },
+    applicationMethod: {
+      type: String,
+      enum: ["Email", "Website", "Both"],
+      default: "Email",
+    },
+    applicationEmail: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      match: [
+        /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,})$/,
+        "Please enter a valid email address",
+      ],
+    },
+    applicationUrl: {
+      type: String,
+      trim: true,
     },
     featured: {
       type: Boolean,
       default: false,
     },
+    postedDate: {
+      type: Date,
+      default: Date.now,
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
     postedBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
+      type: mongoose.Schema.Types.Mixed, // Can be ObjectId (for user reference) or string ("user" or "admin")
       required: true,
     },
     applicationCount: {

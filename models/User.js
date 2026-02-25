@@ -211,7 +211,6 @@ userSchema.methods.hasPermission = function (permission) {
 };
 
 // Index for better search performance
-userSchema.index({ email: 1 });
 userSchema.index({ role: 1, isActive: 1 });
 userSchema.index({ department: 1 });
 userSchema.index({ firstName: "text", lastName: "text" });

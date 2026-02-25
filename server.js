@@ -14,6 +14,7 @@ import jobsRouter from "./routes/jobs.js";
 import contactsRouter from "./routes/contacts.js";
 import applicationsRouter from "./routes/applications.js";
 import authRouter from "./routes/auth.js";
+import adminRouter from "./routes/admin.js";
 
 // Load environment variables
 dotenv.config();
@@ -38,17 +39,24 @@ app.use(
     origin: process.env.FRONTEND_URL || [
       "http://localhost:3000",
       "http://localhost:4001",
+      "http://localhost:5173",
+      "http://localhost:5174",
+      "http://localhost:5175",
+      "http://localhost:5176",
     ],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+    exposedHeaders: ["Content-Length", "X-Total-Count"],
+    preflightContinue: true,
+    optionsSuccessStatus: 204,
   }),
 );
 
 // Rate limiting
 const limiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100, // limit each IP to 100 requests per windowMs
+  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 1000, // limit each IP to 1000 requests per windowMs
   message: {
     error: "Too many requests from this IP, please try again later.",
   },
@@ -70,6 +78,13 @@ if (process.env.NODE_ENV === "development") {
 // Static file serving for uploads
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
+// API routes
+app.use("/api/jobs", jobsRouter);
+app.use("/api/contacts", contactsRouter);
+app.use("/api/applications", applicationsRouter);
+app.use("/api/auth", authRouter);
+app.use("/api/admin", adminRouter);
+
 // Health check endpoint
 app.get("/health", (req, res) => {
   res.status(200).json({
@@ -79,35 +94,45 @@ app.get("/health", (req, res) => {
   });
 });
 
-// API routes
-app.use("/api/jobs", jobsRouter);
-app.use("/api/contacts", contactsRouter);
-app.use("/api/applications", applicationsRouter);
-app.use("/api/auth", authRouter);
+// Production: Serve frontend static build
+if (process.env.NODE_ENV === "production") {
+  // Serve static files from the frontend dist folder (Vite build output)
+  const frontendDistPath = path.join(__dirname, "..", "maplorix", "dist");
+  app.use(express.static(frontendDistPath));
 
-// Root endpoint
-app.get("/", (req, res) => {
-  res.json({
-    message: "Maplorix Backend API",
-    version: "1.0.0",
-    status: "running",
-    endpoints: {
-      jobs: "/api/jobs",
-      contacts: "/api/contacts",
-      applications: "/api/applications",
-      auth: "/api/auth",
-      health: "/health",
-    },
+  // Handle React routing, return index.html for all non-API routes
+  app.get("*", (req, res) => {
+    if (!req.path.startsWith("/api/") && !req.path.startsWith("/uploads/")) {
+      res.sendFile(path.join(frontendDistPath, "index.html"));
+    }
   });
-});
+} else {
+  // Development: Root endpoint
+  app.get("/", (req, res) => {
+    res.json({
+      message: "Maplorix Backend API",
+      version: "1.0.0",
+      status: "running",
+      environment: "development",
+      endpoints: {
+        jobs: "/api/jobs",
+        contacts: "/api/contacts",
+        applications: "/api/applications",
+        auth: "/api/auth",
+        admin: "/api/admin",
+        health: "/health",
+      },
+    });
+  });
 
-// 404 handler
-app.use("*", (req, res) => {
-  res.status(404).json({
-    error: "Route not found",
-    message: `Cannot ${req.method} ${req.originalUrl}`,
+  // Development: 404 handler for API routes only
+  app.use("/api/*", (req, res) => {
+    res.status(404).json({
+      error: "Route not found",
+      message: `Cannot ${req.method} ${req.originalUrl}`,
+    });
   });
-});
+}
 
 // Global error handler
 app.use((err, req, res, next) => {
@@ -145,44 +170,158 @@ app.use((err, req, res, next) => {
   });
 });
 
+// MongoDB connection event listeners
+mongoose.connection.on("connected", () => {
+  console.log("🔌 Mongoose connected to MongoDB");
+  console.log("🗄️ Active Database:", mongoose.connection.name);
+});
+
+mongoose.connection.on("error", (err) => {
+  console.error("❌ Mongoose connection error:", err);
+});
+
+mongoose.connection.on("disconnected", () => {
+  console.log("🔌 Mongoose disconnected from MongoDB");
+});
+
+// Handle application termination
+process.on("SIGINT", async () => {
+  console.log("\n🛑 Application termination detected");
+  console.log("🗄️ Closing database connection...");
+  await mongoose.connection.close();
+  console.log("✅ Database connection closed");
+  process.exit(0);
+});
+
 // Database connection
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(
-      process.env.MONGODB_URI || "mongodb://localhost:27017/maplorix",
-    );
+    // Get the MongoDB URI from environment variables
+    const mongoURI =
+      process.env.MONGODB_URI || "mongodb://localhost:27017/maplorix";
 
-    console.log(`MongoDB Connected: ${conn.connection.host}`);
+    console.log("🔗 Attempting to connect to MongoDB...");
+    console.log("📍 Connection URI:", mongoURI);
+
+    // Extract database name from URI for logging
+    const dbName = mongoURI.split("/").pop().split("?")[0];
+    console.log("🎯 Target Database Name:", dbName);
+
+    // Connect to MongoDB with explicit options
+    const conn = await mongoose.connect(mongoURI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
+
+    console.log("✅ MongoDB Connected Successfully!");
+    console.log("🗄️ Database Name:", mongoose.connection.name);
+    console.log("🌐 Connection Host:", conn.connection.host);
+    console.log("🔌 Connection Port:", conn.connection.port);
+    console.log("📊 Connection State:", mongoose.connection.readyState);
+
+    // Verify we're connected to the right database
+    if (mongoose.connection.name === dbName) {
+      console.log(
+        "✅ Connected to correct database:",
+        mongoose.connection.name,
+      );
+    } else {
+      console.log("⚠️  Database name mismatch!");
+      console.log("   Expected:", dbName);
+      console.log("   Actual:", mongoose.connection.name);
+    }
+
+    // Test database operations
+    const db = mongoose.connection.db;
+    console.log("📋 Available Collections:");
+    const collections = await db.listCollections().toArray();
+    collections.forEach((collection) => {
+      console.log("   -", collection.name);
+    });
   } catch (error) {
-    console.error("Database connection error:", error);
+    console.error("❌ Database connection error:", error);
+    console.error("🔍 Error Details:", error.message);
     process.exit(1);
   }
 };
 
-// Start server
-const PORT = process.env.PORT || 4000;
+// Start server with automatic port detection
+const DEFAULT_PORT = process.env.PORT || 4000;
+
+const findAvailablePort = async (startPort) => {
+  const net = await import("net").then((mod) => mod.default);
+
+  const tryPort = (port) => {
+    return new Promise((resolve) => {
+      const server = net.createServer();
+
+      server.listen(port, "0.0.0.0", () => {
+        const foundPort = server.address().port;
+        server.close(() => resolve(foundPort));
+      });
+
+      server.on("error", () => {
+        server.close(() => resolve(null));
+      });
+    });
+  };
+
+  // Try ports from startPort to startPort + 100
+  for (let port = startPort; port < startPort + 100; port++) {
+    const availablePort = await tryPort(port);
+    if (availablePort) {
+      return availablePort;
+    }
+  }
+
+  return null; // No port available
+};
 
 const startServer = async () => {
-  await connectDB();
+  try {
+    await connectDB();
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(
-      `Server running in ${process.env.NODE_ENV || "development"} mode on port ${PORT}`,
-    );
-    console.log(`API documentation available at http://localhost:${PORT}`);
-  });
+    const availablePort = await findAvailablePort(DEFAULT_PORT);
+
+    if (!availablePort) {
+      console.error(
+        "No available ports found. Please check your system configuration.",
+      );
+      process.exit(1);
+    }
+
+    app.listen(availablePort, "0.0.0.0", () => {
+      console.log(
+        `Server running in ${process.env.NODE_ENV || "development"} mode on port ${availablePort}`,
+      );
+      console.log(
+        `API documentation available at http://localhost:${availablePort}`,
+      );
+
+      if (availablePort !== parseInt(DEFAULT_PORT)) {
+        console.log(
+          `Note: Port ${DEFAULT_PORT} was in use, using port ${availablePort} instead`,
+        );
+      }
+    });
+  } catch (error) {
+    console.error("Failed to start server:", error);
+    process.exit(1);
+  }
 };
 
 // Handle unhandled promise rejections
 process.on("unhandledRejection", (err, promise) => {
   console.error("Unhandled Promise Rejection:", err);
-  process.exit(1);
+  // Don't exit the process, just log the error
+  console.error("Promise:", promise);
 });
 
 // Handle uncaught exceptions
 process.on("uncaughtException", (err) => {
   console.error("Uncaught Exception:", err);
-  process.exit(1);
+  // Don't exit the process immediately, try to continue
+  console.error("Server will continue running despite the error");
 });
 
 // Graceful shutdown
