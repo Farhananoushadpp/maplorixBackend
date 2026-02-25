@@ -29,13 +29,15 @@ const generateToken = (userId) => {
 // Register a new user
 export const register = async (req, res) => {
   try {
-    const { firstName, lastName, email, password, phone, message } = req.body;
+    const { firstName, lastName, email, password, phone, message, role } =
+      req.body;
 
     console.log("🔍 Registration attempt:");
     console.log("  First Name:", firstName);
     console.log("  Last Name:", lastName);
     console.log("  Email:", email);
     console.log("  Phone:", phone);
+    console.log("  Role:", role);
     console.log("  Request body:", JSON.stringify(req.body));
 
     // Check database connection
@@ -77,7 +79,7 @@ export const register = async (req, res) => {
       lastName,
       email,
       password,
-      role: "user", // Default role as per requirements
+      role: role || "user", // Use role from request or default to "user"
       department: "General",
       phone: phone || "",
     });
