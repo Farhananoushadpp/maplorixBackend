@@ -1,0 +1,82 @@
+@import url("https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    font-family: "Poppins", sans-serif;
+    line-height: 1.5;
+    font-weight: 400;
+
+    color-scheme: light dark;
+    color: rgba(255, 255, 255, 0.87);
+    background-color: #242424;
+
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    height: 100%;
+  }
+
+  body {
+    overflow-x: hidden;
+    height: 100%;
+  }
+
+  a {
+    @apply cursor-pointer;
+  }
+}
+
+@layer components {
+  .loader {
+    width: 48px;
+    height: 48px;
+    display: inline-block;
+    position: relative;
+  }
+  .loader::after,
+  .loader::before {
+    content: "";
+    box-sizing: border-box;
+    width: 48px;
+    height: 48px;
+    border: 2px solid #fff;
+    position: absolute;
+    left: 0;
+    top: 0;
+    animation: rotationBreak 3s ease-in-out infinite alternate;
+  }
+  .loader::after {
+    border-color: #1081c4;
+    animation-direction: alternate-reverse;
+  }
+
+  @keyframes rotationBreak {
+    0% {
+      transform: rotate(0);
+    }
+    25% {
+      transform: rotate(90deg);
+    }
+    50% {
+      transform: rotate(180deg);
+    }
+    75% {
+      transform: rotate(270deg);
+    }
+    100% {
+      transform: rotate(360deg);
+    }
+  }
+}
+
+@layer utilities {
+}

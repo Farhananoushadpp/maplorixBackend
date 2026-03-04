@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": false,
+    "target": "es6",
+    "module": "esnext",
+    "moduleResolution": "node",
+    "outDir": "./dist",
+    "typeRoots": ["./node_modules/@types", "./types"]
+  },
+  "include": ["**/*.ts", "**/*.mjs"],
+  "exclude": ["node_modules", "dist"]
+}
