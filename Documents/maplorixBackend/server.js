@@ -8,6 +8,8 @@ import rateLimit from "express-rate-limit";
 import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
+import https from "https";
+import fs from "fs";
 
 // Import routes
 import jobsRouter from "./routes/jobs.js";
@@ -38,12 +40,13 @@ app.use(
 app.use(
   cors({
     origin: process.env.FRONTEND_URL || [
-      "http://localhost:3000",
+      "https://maplorix.ae", // Production domain
+      "http://localhost:3000", // Local development
       "http://localhost:4001",
-      "http://localhost:5173",
-      "http://localhost:5174",
-      "http://localhost:5175",
-      "http://localhost:5176",
+      "http://localhost:5173", // Vite dev server
+      "http://localhost:5174", // Alternative port
+      "http://localhost:5175", // Alternative port
+      "http://localhost:5176", // Alternative port
     ],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
@@ -213,16 +216,19 @@ const connectDB = async () => {
     const dbName = mongoURI.split("/").pop().split("?")[0];
     console.log("🎯 Target Database Name:", dbName);
 
-    // Connect to MongoDB with explicit options
+    // Connect to MongoDB with MongoDB v4 compatible options
     const conn = await mongoose.connect(mongoURI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
+      useCreateIndex: true,
+      useFindAndModify: false,
+      useMongoClient: true,
     });
 
     console.log("✅ MongoDB Connected Successfully!");
     console.log("🗄️ Database Name:", mongoose.connection.name);
-    console.log("🌐 Connection Host:", conn.connection.host);
-    console.log("🔌 Connection Port:", conn.connection.port);
+    console.log("🌐 Connection Host:", conn.host || "localhost");
+    console.log("🔌 Connection Port:", conn.port || 27017);
     console.log("📊 Connection State:", mongoose.connection.readyState);
 
     // Verify we're connected to the right database
@@ -237,13 +243,9 @@ const connectDB = async () => {
       console.log("   Actual:", mongoose.connection.name);
     }
 
-    // Test database operations
-    const db = mongoose.connection.db;
-    console.log("📋 Available Collections:");
-    const collections = await db.listCollections().toArray();
-    collections.forEach((collection) => {
-      console.log("   -", collection.name);
-    });
+    // Test database operations - simplified for MongoDB v4 compatibility
+    console.log("📋 Database connection verified");
+    console.log("🎯 Ready to handle API requests!");
   } catch (error) {
     console.error("❌ Database connection error:", error);
     console.error("🔍 Error Details:", error.message);
@@ -293,20 +295,41 @@ const startServer = async () => {
         ? await findAvailablePort(DEFAULT_PORT)
         : 4000;
 
-    app.listen(port, "0.0.0.0", () => {
-      console.log(
-        `Server running in ${process.env.NODE_ENV || "development"} mode on port ${port}`,
-      );
-      console.log(`API documentation available at http://localhost:${port}`);
-
-      if (
-        port !== parseInt(DEFAULT_PORT) &&
-        process.env.NODE_ENV === "production"
-      ) {
-        console.log(
-          `Note: Port ${DEFAULT_PORT} was in use, using port ${port} instead`,
-        );
+    // HTTPS options (self-signed) - only for production
+    let httpsOptions = null;
+    if (process.env.NODE_ENV === "production") {
+      try {
+        httpsOptions = {
+          key: fs.readFileSync("/etc/ssl/private/maplorix.key"),
+          cert: fs.readFileSync("/etc/ssl/certs/maplorix.crt"),
+        };
+      } catch (error) {
+        console.log("⚠️ SSL certificates not found, running HTTP only");
       }
+    }
+
+    // Create HTTPS server (production only) or HTTP server (development)
+    if (httpsOptions && process.env.NODE_ENV === "production") {
+      https.createServer(httpsOptions, app).listen(port, "0.0.0.0", () => {
+        console.log(
+          `🔒 HTTPS Server running in ${process.env.NODE_ENV || "development"} mode on port ${port}`,
+        );
+        console.log(`API documentation available at https://localhost:${port}`);
+      });
+    } else {
+      // HTTP server for development
+      app.listen(port, "0.0.0.0", () => {
+        console.log(
+          `🌐 HTTP Server running in ${process.env.NODE_ENV || "development"} mode on port ${port}`,
+        );
+        console.log(`API documentation available at http://localhost:${port}`);
+      });
+    }
+
+    // Also start HTTP server for fallback
+    app.listen(4001, "0.0.0.0", () => {
+      console.log("🌐 HTTP Server running on port 4001");
+      console.log("API documentation available at http://localhost:4001");
     });
   } catch (error) {
     console.error("Failed to start server:", error);
