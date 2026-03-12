@@ -202,7 +202,7 @@ process.on("SIGINT", async () => {
   process.exit(0);
 });
 
-// Database connection
+// MongoDB connection - Updated for MongoDB v4 compatibility
 const connectDB = async () => {
   try {
     // Get the MongoDB URI from environment variables
