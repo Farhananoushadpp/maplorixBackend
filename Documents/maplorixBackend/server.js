@@ -216,13 +216,12 @@ const connectDB = async () => {
     const dbName = mongoURI.split("/").pop().split("?")[0];
     console.log("🎯 Target Database Name:", dbName);
 
-    // Connect to MongoDB with MongoDB v4 compatible options
+    // Connect to MongoDB with MongoDB v5 compatible options
     const conn = await mongoose.connect(mongoURI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
       useCreateIndex: true,
       useFindAndModify: false,
-      useMongoClient: true,
     });
 
     console.log("✅ MongoDB Connected Successfully!");
