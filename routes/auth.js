@@ -76,6 +76,8 @@ router.post(
         "Finance",
 
         "Legal",
+
+        "General",
       ])
 
       .withMessage("Invalid department"),
@@ -197,6 +199,7 @@ router.post(
   ],
 
   handleValidationErrors,
+
   changePassword,
 );
 

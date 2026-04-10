@@ -1,6 +1,5 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
 
 const userSchema = new mongoose.Schema(
   {
@@ -209,21 +208,6 @@ userSchema.methods.getPermissions = function () {
 userSchema.methods.hasPermission = function (permission) {
   const userPermissions = this.getPermissions();
   return userPermissions.includes(permission);
-};
-
-// Method to generate JWT token
-userSchema.methods.generateAuthToken = function () {
-  const payload = {
-    id: this._id,
-    email: this.email,
-    role: this.role,
-    firstName: this.firstName,
-    lastName: this.lastName,
-  };
-
-  return jwt.sign(payload, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRE || "7d",
-  });
 };
 
 // Index for better search performance

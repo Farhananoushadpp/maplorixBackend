@@ -81,7 +81,7 @@ const applicationSchema = new mongoose.Schema(
       currency: {
         type: String,
         default: "USD",
-        enum: ["USD", "EUR", "GBP", "CAD", "AUD", "INR", "AED"],
+        enum: ["USD", "EUR", "GBP", "CAD", "AUD", "INR"],
       },
     },
     noticePeriod: {
@@ -95,13 +95,6 @@ const applicationSchema = new mongoose.Schema(
         "negotiable",
       ],
       default: "30 days",
-    },
-
-    // Additional Information
-    coverLetter: {
-      type: String,
-      trim: true,
-      maxlength: [5000, "Cover letter cannot exceed 5000 characters"],
     },
 
     // Job Information (optional)

@@ -1,51 +1,63 @@
 import mongoose from 'mongoose';
+import Job from './models/Job.js';
 
 const checkDatabaseDirectly = async () => {
   try {
-    console.log('🔧 Connecting to database directly...');
+    console.log('🔍 Checking database directly...');
     
-    // Connect to MongoDB
-    await mongoose.connect('mongodb://localhost:27017/maplorix');
-    console.log('✅ Connected to MongoDB');
+    // Connect to database
+    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/maplorix');
+    console.log('✅ Connected to database');
     
-    // Get the jobs collection
-    const db = mongoose.connection.db;
-    const jobsCollection = db.collection('jobs');
+    // Find the specific job
+    const targetJob = await Job.findOne({ 
+      title: 'GYFDSJWFC',
+      company: 'fvnengje4hg'
+    });
     
-    // Count all documents
-    const totalCount = await jobsCollection.countDocuments();
-    console.log(`📋 Total documents in jobs collection: ${totalCount}`);
-    
-    // Find admin jobs
-    const adminJobs = await jobsCollection.find({ postedBy: 'admin' }).toArray();
-    console.log(`📋 Admin jobs in database: ${adminJobs.length}`);
-    
-    if (adminJobs.length > 0) {
-      console.log('📋 Admin job details:');
-      adminJobs.forEach((job, index) => {
-        console.log(`  Admin Job ${index + 1}:`, {
-          _id: job._id,
-          title: job.title,
-          postedBy: job.postedBy,
-          isActive: job.isActive,
-          createdAt: job.createdAt
-        });
+    if (targetJob) {
+      console.log('📄 Raw Database Document:');
+      console.log('- _id:', targetJob._id);
+      console.log('- title:', targetJob.title);
+      console.log('- company:', targetJob.company);
+      console.log('- location:', targetJob.location);
+      console.log('- experience:', targetJob.experience);
+      console.log('- requirements:', targetJob.requirements);
+      console.log('- salary:', targetJob.salary);
+      console.log('- type:', targetJob.type);
+      console.log('- category:', targetJob.category);
+      console.log('- description:', targetJob.description);
+      
+      console.log('\n🔍 Document Object Keys:');
+      console.log(Object.keys(targetJob.toObject()));
+      
+      console.log('\n🔍 Full Document:');
+      console.log(JSON.stringify(targetJob.toObject(), null, 2));
+      
+    } else {
+      console.log('❌ Target job not found');
+      
+      // Show all jobs
+      const allJobs = await Job.find({});
+      console.log(`\n📊 Found ${allJobs.length} jobs:`);
+      
+      allJobs.forEach((job, index) => {
+        console.log(`\n${index + 1}. Job: "${job.title}"`);
+        console.log(`   - Company: ${job.company}`);
+        console.log(`   - Experience: ${job.experience}`);
+        console.log(`   - Requirements: ${job.requirements ? 'Has data' : 'No data'}`);
+        console.log(`   - Salary: ${job.salary ? JSON.stringify(job.salary) : 'No data'}`);
       });
     }
     
-    // Find recent jobs
-    const recentJobs = await jobsCollection.find({}).sort({ createdAt: -1 }).limit(5).toArray();
-    console.log('\n📋 Most recent 5 jobs:');
-    recentJobs.forEach((job, index) => {
-      console.log(`  Job ${index + 1}: ${job.title} (postedBy: ${job.postedBy}, isActive: ${job.isActive})`);
-    });
-    
-    // Close connection
-    await mongoose.connection.close();
-    console.log('✅ Database connection closed');
+    await mongoose.disconnect();
+    console.log('✅ Disconnected from database');
     
   } catch (error) {
     console.error('❌ Database check failed:', error.message);
+    if (mongoose.connection.readyState === 1) {
+      await mongoose.disconnect();
+    }
   }
 };
 

@@ -1,19 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import { jobsAPI } from './api';
+import React, { useState, useEffect } from "react";
+import { jobsAPI } from "./api";
 
 const AdminPostsPage = () => {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [selectedJob, setSelectedJob] = useState(null);
+  const [showJobDetails, setShowJobDetails] = useState(false);
   const [formData, setFormData] = useState({
-    title: '',
-    company: '',
-    location: '',
-    type: 'Full-time',
-    description: '',
-    requirements: '',
-    salaryMin: '',
-    salaryMax: '',
-    experience: 'Entry Level'
+    title: "",
+    company: "",
+    location: "",
+    type: "Full-time",
+    description: "",
+    requirements: "",
+    salaryMin: "",
+    salaryMax: "",
+    experience: "Entry Level",
   });
   const [editingJob, setEditingJob] = useState(null);
 
@@ -26,10 +28,16 @@ const AdminPostsPage = () => {
     try {
       setLoading(true);
       const response = await jobsAPI.getAllJobs();
-      setJobs(response.data || response);
+      console.log("📋 Jobs API Response:", response);
+
+      // Handle the jobs API structure - jobs array is direct, not nested in data
+      const jobsData = response.data?.jobs || response.data || response;
+      console.log("📊 Extracted jobs data:", jobsData);
+
+      setJobs(jobsData);
     } catch (error) {
-      console.error('Failed to fetch jobs:', error);
-      alert('Failed to load jobs. Please try again.');
+      console.error("Failed to fetch jobs:", error);
+      alert("Failed to load jobs. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -39,34 +47,34 @@ const AdminPostsPage = () => {
     e.preventDefault();
     try {
       setLoading(true);
-      
+
       if (editingJob) {
         // Update existing job
         await jobsAPI.updateJob(editingJob._id, formData);
-        alert('Job updated successfully!');
+        alert("Job updated successfully!");
       } else {
         // Create new job
         await jobsAPI.createJob(formData);
-        alert('Job created successfully!');
+        alert("Job created successfully!");
       }
-      
+
       // Reset form and refresh jobs
       setFormData({
-        title: '',
-        company: '',
-        location: '',
-        type: 'Full-time',
-        description: '',
-        requirements: '',
-        salaryMin: '',
-        salaryMax: '',
-        experience: 'Entry Level'
+        title: "",
+        company: "",
+        location: "",
+        type: "Full-time",
+        description: "",
+        requirements: "",
+        salaryMin: "",
+        salaryMax: "",
+        experience: "Entry Level",
       });
       setEditingJob(null);
       fetchJobs();
     } catch (error) {
-      console.error('Failed to save job:', error);
-      alert('Failed to save job. Please try again.');
+      console.error("Failed to save job:", error);
+      alert("Failed to save job. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -75,28 +83,38 @@ const AdminPostsPage = () => {
   const handleEdit = (job) => {
     setEditingJob(job);
     setFormData({
-      title: job.title,
-      company: job.company,
-      location: job.location,
-      type: job.type,
-      description: job.description,
-      requirements: job.requirements,
-      salaryMin: job.salary?.min || '',
-      salaryMax: job.salary?.max || '',
-      experience: job.experience
+      title: job.title || "",
+      company: job.company || "",
+      location: job.location || "",
+      type: job.type || "Full-time",
+      description: job.description || "",
+      requirements: job.requirements || "",
+      salaryMin: job.salary?.min || "",
+      salaryMax: job.salary?.max || "",
+      experience: job.experience || "Entry Level",
     });
   };
 
+  const handleViewJobDetails = (job) => {
+    setSelectedJob(job);
+    setShowJobDetails(true);
+  };
+
+  const handleCloseJobDetails = () => {
+    setSelectedJob(null);
+    setShowJobDetails(false);
+  };
+
   const handleDelete = async (jobId) => {
-    if (window.confirm('Are you sure you want to delete this job?')) {
+    if (window.confirm("Are you sure you want to delete this job?")) {
       try {
         setLoading(true);
         await jobsAPI.deleteJob(jobId);
-        alert('Job deleted successfully!');
+        alert("Job deleted successfully!");
         fetchJobs();
       } catch (error) {
-        console.error('Failed to delete job:', error);
-        alert('Failed to delete job. Please try again.');
+        console.error("Failed to delete job:", error);
+        alert("Failed to delete job. Please try again.");
       } finally {
         setLoading(false);
       }
@@ -106,14 +124,14 @@ const AdminPostsPage = () => {
   const handleChange = (e) => {
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value
+      [e.target.name]: e.target.value,
     });
   };
 
   return (
     <div className="admin-posts-page">
-      <h1>{editingJob ? 'Edit Job' : 'Create New Job'}</h1>
-      
+      <h1>{editingJob ? "Edit Job" : "Create New Job"}</h1>
+
       <form onSubmit={handleSubmit} className="job-form">
         <div className="form-group">
           <label>Job Title*</label>
@@ -162,7 +180,11 @@ const AdminPostsPage = () => {
 
         <div className="form-group">
           <label>Experience Level</label>
-          <select name="experience" value={formData.experience} onChange={handleChange}>
+          <select
+            name="experience"
+            value={formData.experience}
+            onChange={handleChange}
+          >
             <option value="Entry Level">Entry Level</option>
             <option value="Mid Level">Mid Level</option>
             <option value="Senior Level">Senior Level</option>
@@ -214,23 +236,26 @@ const AdminPostsPage = () => {
 
         <div className="form-actions">
           <button type="submit" disabled={loading}>
-            {loading ? 'Saving...' : (editingJob ? 'Update Job' : 'Create Job')}
+            {loading ? "Saving..." : editingJob ? "Update Job" : "Create Job"}
           </button>
           {editingJob && (
-            <button type="button" onClick={() => {
-              setEditingJob(null);
-              setFormData({
-                title: '',
-                company: '',
-                location: '',
-                type: 'Full-time',
-                description: '',
-                requirements: '',
-                salaryMin: '',
-                salaryMax: '',
-                experience: 'Entry Level'
-              });
-            }}>
+            <button
+              type="button"
+              onClick={() => {
+                setEditingJob(null);
+                setFormData({
+                  title: "",
+                  company: "",
+                  location: "",
+                  type: "Full-time",
+                  description: "",
+                  requirements: "",
+                  salaryMin: "",
+                  salaryMax: "",
+                  experience: "Entry Level",
+                });
+              }}
+            >
               Cancel
             </button>
           )}
@@ -240,22 +265,128 @@ const AdminPostsPage = () => {
       <div className="jobs-list">
         <h2>Posted Jobs</h2>
         {loading && <p>Loading...</p>}
-        
-        {jobs.map(job => (
+
+        {jobs.map((job) => (
           <div key={job._id} className="job-item">
-            <h3>{job.title}</h3>
-            <p><strong>Company:</strong> {job.company}</p>
-            <p><strong>Location:</strong> {job.location}</p>
-            <p><strong>Type:</strong> {job.type}</p>
-            <p><strong>Posted:</strong> {new Date(job.postedDate).toLocaleDateString()}</p>
-            
+            <h3>{job.title || "Untitled Job"}</h3>
+            <p>
+              <strong>Company:</strong> {job.company || "N/A"}
+            </p>
+            <p>
+              <strong>Location:</strong> {job.location || "N/A"}
+            </p>
+            <p>
+              <strong>Type:</strong> {job.type || "N/A"}
+            </p>
+            <p>
+              <strong>Posted:</strong>{" "}
+              {job.postedDate
+                ? new Date(job.postedDate).toLocaleDateString()
+                : "N/A"}
+            </p>
+
             <div className="job-actions">
+              <button onClick={() => handleViewJobDetails(job)}>
+                View Details
+              </button>
               <button onClick={() => handleEdit(job)}>Edit</button>
               <button onClick={() => handleDelete(job._id)}>Delete</button>
             </div>
           </div>
         ))}
       </div>
+      {/* Job Details Modal */}
+      {showJobDetails && selectedJob && (
+        <div className="modal-overlay" onClick={handleCloseJobDetails}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Job Details</h2>
+              <button className="close-btn" onClick={handleCloseJobDetails}>
+                ×
+              </button>
+            </div>
+
+            <div className="modal-body">
+              <div className="detail-section">
+                <h3>Basic Information</h3>
+                <div className="detail-grid">
+                  <div className="detail-item">
+                    <label>Job Title:</label>
+                    <span>{selectedJob.title || "N/A"}</span>
+                  </div>
+                  <div className="detail-item">
+                    <label>Company:</label>
+                    <span>{selectedJob.company || "N/A"}</span>
+                  </div>
+                  <div className="detail-item">
+                    <label>Location:</label>
+                    <span>{selectedJob.location || "N/A"}</span>
+                  </div>
+                  <div className="detail-item">
+                    <label>Job Type:</label>
+                    <span>{selectedJob.type || "N/A"}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="detail-section">
+                <h3>Requirements</h3>
+                <div className="detail-grid">
+                  <div className="detail-item">
+                    <label>Experience Level:</label>
+                    <span>{selectedJob.experience || "N/A"}</span>
+                  </div>
+                  <div className="detail-item">
+                    <label>Posted Date:</label>
+                    <span>
+                      {selectedJob.postedDate
+                        ? new Date(selectedJob.postedDate).toLocaleDateString()
+                        : selectedJob.createdAt
+                          ? new Date(selectedJob.createdAt).toLocaleDateString()
+                          : "N/A"}
+                    </span>
+                  </div>
+                  <div className="detail-item full-width">
+                    <label>Salary Range:</label>
+                    <span>
+                      {selectedJob.salary?.min && selectedJob.salary?.max
+                        ? `$${selectedJob.salary.min.toLocaleString()} - $${selectedJob.salary.max.toLocaleString()}`
+                        : selectedJob.salary?.min
+                          ? `$${selectedJob.salary.min.toLocaleString()}+`
+                          : selectedJob.salary?.max
+                            ? `Up to $${selectedJob.salary.max.toLocaleString()}`
+                            : "Not specified"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="detail-section">
+                <h3>Job Description</h3>
+                <div className="detail-grid">
+                  <div className="detail-item full-width">
+                    <div className="description-content">
+                      {selectedJob.description || "No description provided"}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="detail-section">
+                <h3>Requirements & Qualifications</h3>
+                <div className="detail-grid">
+                  <div className="detail-item full-width">
+                    <div className="requirements-content">
+                      {selectedJob.requirements ||
+                        "No specific requirements listed"}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
