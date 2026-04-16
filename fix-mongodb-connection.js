@@ -4,7 +4,6 @@ import mongoose from 'mongoose';
 const testConnection = async () => {
   try {
     console.log('Testing MongoDB connection options...\n');
-    
     // Test different connection strings
     const connectionStrings = [
       'mongodb://127.0.0.1:27017/maplorix',

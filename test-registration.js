@@ -13,7 +13,6 @@ const testRegistration = async () => {
       phone: '+1234567890',
       message: 'I want to register as a job seeker'
     };
-    
     console.log('Registering new user:');
     console.log('Name:', newUser.firstName, newUser.lastName);
     console.log('Email:', newUser.email);
