@@ -39,15 +39,33 @@ app.use(
 // CORS configuration
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || [
-      "https://maplorix.ae", // Production domain
-      "http://localhost:3000", // Local development
-      "http://localhost:4001",
-      "http://localhost:5173", // Vite dev server
-      "http://localhost:5174", // Alternative port
-      "http://localhost:5175", // Alternative port
-      "http://localhost:5176", // Alternative port
-    ],
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) return callback(null, true);
+
+      // Allowed origins for both production and development
+      const allowedOrigins = [
+        "https://maplorix.ae", // Production domain
+        "http://localhost:3000", // Local development
+        "http://localhost:4001", // Backend fallback
+        "http://localhost:5173", // Vite dev server
+        "http://localhost:5174", // Alternative port
+        "http://localhost:5175", // Alternative port
+        "http://localhost:5176", // Alternative port
+      ];
+      // Allow environment-specific frontend URL
+      if (
+        process.env.FRONTEND_URL &&
+        process.env.FRONTEND_URL !== "https://maplorix.ae"
+      ) {
+        allowedOrigins.push(process.env.FRONTEND_URL);
+      }
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
@@ -57,19 +75,77 @@ app.use(
   }),
 );
 
-// Rate limiting (development-friendly)
+// Rate limiting optimized for concurrent users
 const limiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 10000, // limit each IP to 10000 requests per windowMs
+  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 5000, // Increased for concurrent users
   message: {
     error: "Too many requests from this IP, please try again later.",
   },
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
   skip: (req) => {
-    // Skip rate limiting for development
-    return process.env.NODE_ENV === "development";
+    // Skip rate limiting for development and health checks
+    return (
+      (process.env.NODE_ENV === "development" &&
+        req.path.startsWith("/health")) ||
+      req.path === "/api/jobs" // Allow more frequent job fetching
+    );
+  },
+  // Add more granular rate limiting for sensitive endpoints
+  keyGenerator: (req) => {
+    // Use IP + user ID if available for more precise limiting
+    return req.user ? `${req.ip}-${req.user._id}` : req.ip;
+  },
+  // Add concurrency-friendly options
+  skipSuccessfulRequests: false, // Count successful requests
+  skipFailedRequests: false, // Count failed requests
+  // Add queue management for high traffic
+  queueSize: 100, // Allow 100 requests to queue
+  queueTimeout: 30 * 1000, // 30 seconds queue timeout
+});
+// General API rate limiting
+app.use("/api/", limiter);
+
+// Stricter rate limiting for authentication endpoints
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs (increased for development)
+  message: {
+    error: "Too many authentication attempts, please try again later.",
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+// Rate limiting for application submissions (increased for multiple users)
+const applicationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 100, // Limit each IP to 100 applications per hour (increased for concurrent users)
+  message: {
+    error: "Too many application submissions, please try again later.",
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    // Use IP + email for more precise limiting
+    const email = req.body?.email || req.user?.email;
+    return email ? `${req.ip}-${email}` : req.ip;
   },
 });
-app.use("/api/", limiter);
+
+// Request timeout middleware to prevent hanging requests
+app.use((req, res, next) => {
+  req.setTimeout(30000, () => {
+    console.log("⏰ Request timeout for:", req.url);
+    if (!res.headersSent) {
+      res.status(408).json({
+        error: "Request Timeout",
+        message: "Request took too long to process",
+      });
+    }
+  });
+  next();
+});
 
 // Body parsing middleware
 app.use(express.json({ limit: "10mb" }));
@@ -86,11 +162,11 @@ if (process.env.NODE_ENV === "development") {
 // Static file serving for uploads
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-// API routes
+// API routes with specific rate limiting
 app.use("/api/jobs", jobsRouter);
 app.use("/api/contacts", contactsRouter);
-app.use("/api/applications", applicationsRouter);
-app.use("/api/auth", authRouter);
+app.use("/api/applications", applicationLimiter, applicationsRouter);
+app.use("/api/auth", authLimiter, authRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api/pages", pagesRouter);
 
@@ -216,12 +292,25 @@ const connectDB = async () => {
     const dbName = mongoURI.split("/").pop().split("?")[0];
     console.log("🎯 Target Database Name:", dbName);
 
-    // Connect to MongoDB with MongoDB v5 compatible options
+    // Connect to MongoDB with connection pooling for concurrent users
     const conn = await mongoose.connect(mongoURI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
       useCreateIndex: true,
       useFindAndModify: false,
+      // Enhanced connection pooling for high concurrency
+      maxPoolSize: 100, // Increased for concurrent users
+      minPoolSize: 10, // Maintain minimum connections
+      maxIdleTimeMS: 30000, // Keep connections open for 30 seconds
+      serverSelectionTimeoutMS: 5000, // How long to try selecting a server
+      socketTimeoutMS: 45000, // How long a send or receive on a socket can take
+      connectTimeoutMS: 10000, // How long to try connecting
+      heartbeatFrequencyMS: 10000, // Check server status every 10 seconds
+      retryWrites: true, // Retry write operations
+      retryReads: true, // Retry read operations
+      family: 4, // Use IPv4, skip trying IPv6
+      bufferMaxEntries: 0, // Disable mongoose buffering
+      bufferCommands: false, // Disable mongoose buffering
     });
 
     console.log("✅ MongoDB Connected Successfully!");
@@ -283,7 +372,6 @@ const findAvailablePort = async (startPort) => {
 
   return null; // No port available
 };
-
 const startServer = async () => {
   try {
     await connectDB();
@@ -306,7 +394,6 @@ const startServer = async () => {
         console.log("⚠️ SSL certificates not found, running HTTP only");
       }
     }
-
     // Create HTTPS server (production only) or HTTP server (development)
     if (httpsOptions && process.env.NODE_ENV === "production") {
       https.createServer(httpsOptions, app).listen(port, "0.0.0.0", () => {
@@ -324,12 +411,6 @@ const startServer = async () => {
         console.log(`API documentation available at http://localhost:${port}`);
       });
     }
-
-    // Also start HTTP server for fallback
-    app.listen(4001, "0.0.0.0", () => {
-      console.log("🌐 HTTP Server running on port 4001");
-      console.log("API documentation available at http://localhost:4001");
-    });
   } catch (error) {
     console.error("Failed to start server:", error);
     process.exit(1);

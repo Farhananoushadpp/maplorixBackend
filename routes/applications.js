@@ -1,5 +1,10 @@
 import express from "express";
 import { query, body } from "express-validator";
+
+// Custom sanitizer to handle undefined values
+const sanitizeUndefined = (value) => {
+  return value === undefined ? "" : value;
+};
 import multer from "multer";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -16,6 +21,7 @@ import {
   handleValidationErrors,
 } from "../controllers/applicationController.js";
 import auth from "../middleware/auth.js";
+import { verifyRecaptcha } from "../middleware/recaptcha.js";
 import { ensureUploadsDir, cleanupFile } from "../utils/fileUpload.js";
 
 const router = express.Router();
@@ -53,9 +59,15 @@ const storage = multer.diskStorage({
     }
   },
   filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    // Enhanced unique filename for concurrent users
+    const timestamp = Date.now();
+    const randomSuffix = Math.round(Math.random() * 1e9);
+    const processId = process.pid;
     const ext = path.extname(file.originalname);
-    const filename = "resume-" + uniqueSuffix + ext;
+    const sanitizedName = file.originalname
+      .replace(/[^a-zA-Z0-9.-]/g, "_")
+      .substring(0, 50);
+    const filename = `resume-${timestamp}-${randomSuffix}-${processId}-${sanitizedName}${ext}`;
     console.log("Generated filename:", filename);
     cb(null, filename);
   },
@@ -133,53 +145,63 @@ const upload = multer({
     }
   },
   limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB limit
+    fileSize: 10 * 1024 * 1024, // 10MB limit
   },
 });
 
-// Multer error handling middleware
+// Enhanced Multer error handling middleware for concurrent users
 const handleMulterError = (err, req, res, next) => {
   if (err) {
-    console.error("File upload error:", err);
+    console.error("File upload error:", {
+      error: err.message,
+      code: err.code,
+      timestamp: new Date().toISOString(),
+      ip: req.ip,
+      userAgent: req.get("User-Agent"),
+    });
 
     // Clean up any uploaded file if it exists
     if (req.file?.path) {
-      cleanupFile(req.file.path).catch((cleanupError) => {
-        console.error(
-          "Error cleaning up file after upload error:",
-          cleanupError,
-        );
+      try {
+        fs.unlinkSync(req.file.path);
+        console.log("Cleaned up file:", req.file.path);
+      } catch (cleanupError) {
+        console.error("Error cleaning up file:", cleanupError);
+      }
+    }
+
+    if (err.code === "LIMIT_FILE_SIZE") {
+      return res.status(413).json({
+        error: "File too large",
+        message: "File size exceeds the 10MB limit",
       });
     }
 
-    // Handle different types of errors
-    if (err.code === "LIMIT_FILE_SIZE") {
-      return res.status(413).json({
-        success: false,
-        error: "File too large",
-        message: "File size cannot exceed 5MB",
+    if (err.code === "LIMIT_FILE_COUNT") {
+      return res.status(400).json({
+        error: "Too many files",
+        message: "Only one file is allowed per application",
       });
     }
 
     if (err.code === "LIMIT_UNEXPECTED_FILE") {
       return res.status(400).json({
-        success: false,
-        error: "Invalid file field",
-        message: "Unexpected file field",
+        error: "Unexpected file",
+        message: "File field name must be 'resume'",
       });
     }
 
-    // Handle file type errors
-    if (err.message.includes("Invalid file type")) {
-      return res.status(400).json({
-        success: false,
-        error: "Invalid file type",
-        message: "Only PDF, DOC, and DOCX files are allowed",
+    // Handle concurrent upload errors
+    if (err.code === "ENOENT" || err.code === "EACCES") {
+      return res.status(500).json({
+        error: "File system error",
+        message: "Server is busy, please try again in a few seconds",
       });
     }
 
-    // Default error response
     return res.status(500).json({
+      error: "File upload failed",
+      message: err.message || "Unknown file upload error. Please try again.",
       success: false,
       error: "Upload failed",
       message:
@@ -197,6 +219,7 @@ router.post(
   "/",
   upload.single("resume"), // Handle file upload
   handleMulterError, // Handle multer errors
+  verifyRecaptcha, // Verify reCAPTCHA token
   [
     body("fullName")
       .notEmpty()
@@ -249,7 +272,6 @@ router.post(
         "5+",
 
         "10+",
-
         "Entry Level",
 
         "Mid Level",
@@ -332,31 +354,27 @@ router.post(
       .withMessage("Cover letter cannot exceed 5000 characters"),
 
     body("linkedinProfile")
-      .optional()
-
+      .optional({ checkFalsy: true })
+      .customSanitizer(sanitizeUndefined)
       .isURL()
-
       .withMessage("Please enter a valid LinkedIn profile URL"),
 
     body("portfolio")
-      .optional()
-
+      .optional({ checkFalsy: true })
+      .customSanitizer(sanitizeUndefined)
       .isURL()
-
       .withMessage("Please enter a valid portfolio URL"),
 
     body("github")
-      .optional()
-
+      .optional({ checkFalsy: true })
+      .customSanitizer(sanitizeUndefined)
       .isURL()
-
       .withMessage("Please enter a valid GitHub profile URL"),
 
     body("website")
-      .optional()
-
+      .optional({ checkFalsy: true })
+      .customSanitizer(sanitizeUndefined)
       .isURL()
-
       .withMessage("Please enter a valid website URL"),
 
     body("source")
@@ -381,7 +399,6 @@ router.post(
 
         "other",
       ])
-
       .withMessage("Invalid source"),
 
     body("gender")
@@ -497,9 +514,9 @@ router.get(
     query("limit")
       .optional()
 
-      .isInt({ min: 1, max: 100 })
+      .isInt({ min: 1, max: 10000 })
 
-      .withMessage("Limit must be between 1 and 100"),
+      .withMessage("Limit must be between 1 and 10000"),
 
     query("status")
       .optional()
@@ -617,9 +634,9 @@ router.get(
     query("limit")
       .optional()
 
-      .isInt({ min: 1, max: 100 })
+      .isInt({ min: 1, max: 10000 })
 
-      .withMessage("Limit must be between 1 and 100"),
+      .withMessage("Limit must be between 1 and 10000"),
 
     query("jobRole")
       .optional()

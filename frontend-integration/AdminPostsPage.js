@@ -18,7 +18,6 @@ const AdminPostsPage = () => {
     experience: "Entry Level",
   });
   const [editingJob, setEditingJob] = useState(null);
-
   // Fetch jobs on component mount
   useEffect(() => {
     fetchJobs();

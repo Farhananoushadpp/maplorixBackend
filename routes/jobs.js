@@ -32,8 +32,8 @@ router.get(
   [
     query("limit")
       .optional()
-      .isInt({ min: 1, max: 20 })
-      .withMessage("Limit must be between 1 and 20"),
+      .isInt({ min: 1, max: 10000 })
+      .withMessage("Limit must be between 1 and 10000"),
   ],
   handleValidationErrors,
   getFeaturedJobs,

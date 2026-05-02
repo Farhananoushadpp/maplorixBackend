@@ -108,48 +108,8 @@ export const submitApplication = async (req, res) => {
       captchaToken, // CAPTCHA token from frontend
     } = req.body;
 
-    // Verify CAPTCHA token (for production, use your actual secret key)
-    if (process.env.NODE_ENV === "production") {
-      if (
-        !captchaToken ||
-        captchaToken === "undefined" ||
-        captchaToken === ""
-      ) {
-        return res.status(400).json({
-          success: false,
-          error: "Validation Error",
-          message:
-            "CAPTCHA verification is required. Please complete the CAPTCHA challenge.",
-        });
-      }
-
-      // In production, verify the CAPTCHA token with Google's API
-      try {
-        const recaptchaSecret = process.env.RECAPTCHA_SECRET_KEY;
-        const recaptchaVerifyUrl = `https://www.google.com/recaptcha/api/siteverify?secret=${recaptchaSecret}&response=${captchaToken}`;
-        const recaptchaResponse = await fetch(recaptchaVerifyUrl, {
-          method: "POST",
-        });
-        const recaptchaData = await recaptchaResponse.json();
-
-        if (!recaptchaData.success) {
-          return res.status(400).json({
-            success: false,
-            error: "Validation Error",
-            message: "CAPTCHA verification failed. Please try again.",
-          });
-        }
-      } catch (captchaError) {
-        console.error("CAPTCHA verification error:", captchaError);
-        return res.status(500).json({
-          success: false,
-          error: "Server Error",
-          message: "Failed to verify CAPTCHA. Please try again.",
-        });
-      }
-    } else {
-      console.log("Development mode: Skipping CAPTCHA verification");
-    }
+    // reCAPTCHA verification is now handled by middleware
+    // The reCAPTCHA data is available in req.recaptchaData if needed
 
     // Process uploaded file if present
     let resumeInfo = null;
@@ -492,10 +452,17 @@ export const submitApplication = async (req, res) => {
 export const getAllApplications = async (req, res) => {
   try {
     console.log("🔍 Getting applications with query:", req.query);
+    console.log("🔍 Limit type:", typeof req.query.limit);
+    console.log(
+      "🔍 Limit value:",
+      req.query.limit,
+      "parsed:",
+      parseInt(req.query.limit),
+    );
 
     const {
       page = 1,
-      limit = 10,
+      limit = 0,
       status,
       jobRole,
       minExp,
@@ -577,26 +544,27 @@ export const getAllApplications = async (req, res) => {
     sort[sortBy] = sortOrder === "desc" ? -1 : 1;
 
     // Execute query with pagination
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    // Force server to use 10000 regardless of client limit
+    const limitNum = 10000;
+    const skip = (parseInt(page) - 1) * limitNum;
 
     const [applications, total] = await Promise.all([
       Application.find(filter)
         .sort(sort)
         .skip(skip)
-        .limit(parseInt(limit))
+        .limit(limitNum)
         .populate("job", "title company location type"),
       Application.countDocuments(filter),
     ]);
-
     res.json({
       success: true,
       data: {
         applications,
         pagination: {
           current: parseInt(page),
-          pageSize: parseInt(limit),
+          pageSize: limitNum,
           total,
-          pages: Math.ceil(total / parseInt(limit)),
+          pages: Math.ceil(total / limitNum),
         },
         filters: {
           applied: {
@@ -648,11 +616,9 @@ export const getApplicationById = async (req, res) => {
     if (!application) {
       return res.status(404).json({
         error: "Not Found",
-
         message: "Application not found",
       });
     }
-
     res.json({
       success: true,
 
@@ -960,7 +926,7 @@ export const searchCandidates = async (req, res) => {
     const {
       page = 1,
 
-      limit = 10,
+      limit = 0,
 
       jobRole,
 
@@ -1026,8 +992,9 @@ export const searchCandidates = async (req, res) => {
     sort[sortBy] = sortOrder === "desc" ? -1 : 1;
 
     // Execute query with pagination
-
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    // Force server to use 10000 regardless of client limit
+    const limitNum = 10000;
+    const skip = (parseInt(page) - 1) * limitNum;
 
     const [applications, total] = await Promise.all([
       Application.find(filter)
@@ -1036,7 +1003,7 @@ export const searchCandidates = async (req, res) => {
 
         .skip(skip)
 
-        .limit(parseInt(limit))
+        .limit(limitNum)
 
         .populate("job", "title company location type experience jobRole"),
 
@@ -1054,11 +1021,11 @@ export const searchCandidates = async (req, res) => {
         pagination: {
           current: parseInt(page),
 
-          pageSize: parseInt(limit),
+          pageSize: limitNum,
 
           total,
 
-          pages: Math.ceil(total / parseInt(limit)),
+          pages: Math.ceil(total / limitNum),
         },
 
         filters: {

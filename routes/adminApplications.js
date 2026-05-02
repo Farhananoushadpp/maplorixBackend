@@ -23,18 +23,15 @@ router.get(
 
     query("limit")
       .optional()
-      .isInt({ min: 1, max: 100 })
-      .withMessage("Limit must be between 1 and 100"),
+      .isInt({ min: 1, max: 10000 })
+      .withMessage("Limit must be between 1 and 10000"),
 
     query("status")
       .optional()
       .isIn(["all", "pending", "reviewed", "shortlisted", "rejected", "hired"])
       .withMessage("Invalid status filter"),
 
-    query("jobId")
-      .optional()
-      .isMongoId()
-      .withMessage("Invalid job ID"),
+    query("jobId").optional().isMongoId().withMessage("Invalid job ID"),
 
     query("search")
       .optional()
@@ -51,11 +48,7 @@ router.get("/applications/stats", adminAuth, getApplicationStats);
 router.get(
   "/applications/:id",
   adminAuth,
-  [
-    param("id")
-      .isMongoId()
-      .withMessage("Invalid application ID"),
-  ],
+  [param("id").isMongoId().withMessage("Invalid application ID")],
   getApplicationById,
 );
 
@@ -64,9 +57,7 @@ router.put(
   "/applications/:id",
   adminAuth,
   [
-    param("id")
-      .isMongoId()
-      .withMessage("Invalid application ID"),
+    param("id").isMongoId().withMessage("Invalid application ID"),
 
     body("status")
       .isIn(["pending", "reviewed", "shortlisted", "rejected", "hired"])
@@ -84,26 +75,22 @@ router.put(
 router.delete(
   "/applications/:id",
   adminAuth,
-  [
-    param("id")
-      .isMongoId()
-      .withMessage("Invalid application ID"),
-  ],
+  [param("id").isMongoId().withMessage("Invalid application ID")],
   deleteApplication,
 );
+
+
 
 // POST /api/admin/applications/:id/shortlist - Shortlist application (admin only)
 router.post(
   "/applications/:id/shortlist",
   adminAuth,
-  [
-    param("id")
-      .isMongoId()
-      .withMessage("Invalid application ID"),
-  ],
+  [param("id").isMongoId().withMessage("Invalid application ID")],
   async (req, res) => {
     try {
-      const Application = await import("../models/Application.js").then(m => m.default);
+      const Application = await import("../models/Application.js").then(
+        (m) => m.default,
+      );
       const application = await Application.findById(req.params.id);
 
       if (!application) {
@@ -137,14 +124,12 @@ router.post(
 router.post(
   "/applications/:id/reject",
   adminAuth,
-  [
-    param("id")
-      .isMongoId()
-      .withMessage("Invalid application ID"),
-  ],
+  [param("id").isMongoId().withMessage("Invalid application ID")],
   async (req, res) => {
     try {
-      const Application = await import("../models/Application.js").then(m => m.default);
+      const Application = await import("../models/Application.js").then(
+        (m) => m.default,
+      );
       const application = await Application.findById(req.params.id);
 
       if (!application) {
@@ -185,10 +170,14 @@ router.delete(
   ],
   async (req, res) => {
     try {
-      const Application = await import("../models/Application.js").then(m => m.default);
+      const Application = await import("../models/Application.js").then(
+        (m) => m.default,
+      );
       const { applicationIds } = req.body;
 
-      const result = await Application.deleteMany({ _id: { $in: applicationIds } });
+      const result = await Application.deleteMany({
+        _id: { $in: applicationIds },
+      });
 
       res.status(200).json({
         success: true,

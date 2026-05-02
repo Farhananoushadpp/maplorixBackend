@@ -25,13 +25,42 @@ const handleValidationErrors = (req, res, next) => {
   next();
 };
 
-// Get all jobs for Dashboard (GET /api/jobs)
+// Simple in-memory cache for jobs (for production, use Redis)
+const jobsCache = new Map();
+const CACHE_TTL = 2 * 60 * 1000; // 2 minutes
+
+// Get all jobs for Dashboard (GET /api/jobs) - Optimized for concurrency
 export const getAllJobsForDashboard = async (req, res) => {
   try {
     console.log("📊 Getting all jobs for Dashboard");
 
-    // Get all jobs sorted by creation date (newest first)
-    const jobs = await Job.find({ isActive: true }).sort({ createdAt: -1 });
+    // Check cache first
+    const cacheKey = "jobs-dashboard";
+    const cachedJobs = jobsCache.get(cacheKey);
+
+    if (cachedJobs && Date.now() - cachedJobs.timestamp < CACHE_TTL) {
+      console.log("📋 Serving jobs from cache");
+      return res.json({
+        success: true,
+        jobs: cachedJobs.data,
+        cached: true,
+      });
+    }
+
+    // Parse pagination parameters
+    const page = parseInt(req.query.page) || 1;
+    const limit = Math.min(parseInt(req.query.limit) || 50, 100); // Max 100 items
+    const skip = (page - 1) * limit;
+
+    // Use lean() for better performance and select only needed fields
+    const jobs = await Job.find({ isActive: true })
+      .select(
+        "_id title company location type postedBy description experience requirements salary category createdAt",
+      )
+      .lean() // Returns plain JavaScript objects, faster
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
 
     // Transform jobs to match exact response format
     const transformedJobs = jobs.map((job) => ({
@@ -40,7 +69,7 @@ export const getAllJobsForDashboard = async (req, res) => {
       company: job.company,
       location: job.location,
       type: job.type,
-      postedBy: job.postedBy, // Keep as string ("user" or "admin")
+      postedBy: job.postedBy,
       description: job.description,
       experience: job.experience,
       requirements: job.requirements,
@@ -49,9 +78,33 @@ export const getAllJobsForDashboard = async (req, res) => {
       createdAt: job.createdAt,
     }));
 
+    // Cache the results (only cache first page for better performance)
+    if (page === 1) {
+      jobsCache.set(cacheKey, {
+        data: transformedJobs,
+        timestamp: Date.now(),
+      });
+
+      // Clean up old cache entries periodically
+      if (jobsCache.size > 10) {
+        const now = Date.now();
+        for (const [key, value] of jobsCache.entries()) {
+          if (now - value.timestamp > CACHE_TTL) {
+            jobsCache.delete(key);
+          }
+        }
+      }
+    }
+
     res.json({
       success: true,
       jobs: transformedJobs,
+      pagination: {
+        page,
+        limit,
+        total: await Job.countDocuments({ isActive: true }),
+      },
+      cached: false,
     });
   } catch (error) {
     console.error("Error fetching dashboard jobs:", error);
@@ -127,7 +180,7 @@ export const getAllJobs = async (req, res) => {
     const {
       page = 1,
 
-      limit = 10,
+      limit = 0,
 
       role, // Job Role / Title filter
       title, // Alternative title filter
@@ -234,7 +287,9 @@ export const getAllJobs = async (req, res) => {
     sort[sortBy] = sortOrder === "desc" ? -1 : 1;
 
     // Execute query with pagination
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    // Force server to use 10000 regardless of client limit
+    const limitNum = 10000;
+    const skip = (parseInt(page) - 1) * limitNum;
 
     const [jobs, total] = await Promise.all([
       Job.find(filter)
@@ -243,13 +298,12 @@ export const getAllJobs = async (req, res) => {
 
         .skip(skip)
 
-        .limit(parseInt(limit))
+        .limit(limitNum)
 
         .populate("postedBy", "firstName lastName email"),
 
       Job.countDocuments(filter),
     ]);
-
     console.log("🔍 Filter applied:", JSON.stringify(filter, null, 2));
     console.log("🔍 Jobs found:", jobs.length);
 
@@ -260,9 +314,9 @@ export const getAllJobs = async (req, res) => {
         jobs,
         pagination: {
           current: parseInt(page),
-          pageSize: parseInt(limit),
+          pageSize: limitNum,
           total,
-          pages: Math.ceil(total / parseInt(limit)),
+          pages: Math.ceil(total / limitNum),
         },
       },
     });
@@ -281,11 +335,12 @@ export const getAllJobs = async (req, res) => {
 
 export const getFeaturedJobs = async (req, res) => {
   try {
-    const { limit = 6 } = req.query;
+    // Force server to use 10000 regardless of client limit
+    const limitNum = 10000;
 
     const jobs = await Job.find({ featured: true, isActive: true })
       .sort({ createdAt: -1 })
-      .limit(parseInt(limit))
+      .limit(limitNum)
       .populate("postedBy", "firstName lastName email");
 
     res.json({
@@ -424,13 +479,52 @@ export const createJob = async (req, res) => {
       postedBy: postedBy, // Store as string: "user" or "admin"
       description: req.body.description?.trim() || "",
       requirements: req.body.requirements?.trim() || "",
-      salary: req.body.salary
-        ? {
-            min: req.body.salary.min || null,
-            max: req.body.salary.max || null,
-            currency: req.body.salary.currency || "USD",
+      salary: (() => {
+        // Handle salary object from frontend
+        if (req.body.salary && typeof req.body.salary === "object") {
+          const salaryObj = { ...req.body.salary };
+
+          // Clean and convert min value
+          if (salaryObj.min !== undefined) {
+            const minStr = String(salaryObj.min)
+              .replace(/[^\d.]/g, "")
+              .trim();
+            salaryObj.min =
+              minStr && !isNaN(minStr) ? Number(minStr) : undefined;
           }
-        : {},
+
+          // Clean and convert max value
+          if (salaryObj.max !== undefined) {
+            const maxStr = String(salaryObj.max)
+              .replace(/[^\d.]/g, "")
+              .trim();
+            salaryObj.max =
+              maxStr && !isNaN(maxStr) ? Number(maxStr) : undefined;
+          }
+
+          // Ensure currency is valid
+          salaryObj.currency = salaryObj.currency || "AED";
+
+          return salaryObj;
+        }
+        // Handle flat salary fields (salaryMin, salaryMax)
+        else if (
+          req.body.salaryMin !== undefined ||
+          req.body.salaryMax !== undefined
+        ) {
+          return {
+            min: req.body.salaryMin
+              ? Number(String(req.body.salaryMin).replace(/[^\d.]/g, ""))
+              : undefined,
+            max: req.body.salaryMax
+              ? Number(String(req.body.salaryMax).replace(/[^\d.]/g, ""))
+              : undefined,
+            currency: req.body.currency || "AED",
+          };
+        }
+        // Default empty salary object
+        return {};
+      })(),
       experience: req.body.experience || "Entry Level",
       category: req.body.category || "Other",
       isActive: req.body.isActive !== undefined ? req.body.isActive : true,
@@ -516,7 +610,6 @@ export const createJob = async (req, res) => {
         message: "A similar job already exists",
       });
     }
-
     // Handle validation errors
     if (error.name === "ValidationError") {
       const errors = Object.values(error.errors).map((err) => ({
@@ -579,7 +672,56 @@ export const updateJob = async (req, res) => {
 
     // Update job
     console.log("💾 Updating job with new data...");
-    Object.assign(job, req.body);
+
+    // Transform salary fields if present
+    const updateData = { ...req.body };
+
+    // Handle salary object from frontend
+    if (updateData.salary && typeof updateData.salary === "object") {
+      // Extract numeric values from salary object, handling malformed data
+      const salaryObj = { ...updateData.salary };
+
+      // Clean and convert min value
+      if (salaryObj.min !== undefined) {
+        const minStr = String(salaryObj.min)
+          .replace(/[^\d.]/g, "")
+          .trim();
+        salaryObj.min = minStr && !isNaN(minStr) ? Number(minStr) : undefined;
+      }
+
+      // Clean and convert max value
+      if (salaryObj.max !== undefined) {
+        const maxStr = String(salaryObj.max)
+          .replace(/[^\d.]/g, "")
+          .trim();
+        salaryObj.max = maxStr && !isNaN(maxStr) ? Number(maxStr) : undefined;
+      }
+
+      // Ensure currency is valid
+      salaryObj.currency = salaryObj.currency || "AED";
+
+      updateData.salary = salaryObj;
+    }
+    // Handle flat salary fields (salaryMin, salaryMax)
+    else if (
+      updateData.salaryMin !== undefined ||
+      updateData.salaryMax !== undefined
+    ) {
+      updateData.salary = {
+        min: updateData.salaryMin
+          ? Number(String(updateData.salaryMin).replace(/[^\d.]/g, ""))
+          : undefined,
+        max: updateData.salaryMax
+          ? Number(String(updateData.salaryMax).replace(/[^\d.]/g, ""))
+          : undefined,
+        currency: updateData.currency || "AED",
+      };
+      // Remove the flat salary fields
+      delete updateData.salaryMin;
+      delete updateData.salaryMax;
+    }
+
+    Object.assign(job, updateData);
 
     await job.save();
 
