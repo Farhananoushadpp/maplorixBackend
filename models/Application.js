@@ -81,7 +81,7 @@ const applicationSchema = new mongoose.Schema(
       currency: {
         type: String,
         default: "USD",
-        enum: ["USD", "EUR", "GBP", "CAD", "AUD", "INR"],
+        enum: ["USD", "EUR", "GBP", "CAD", "AUD", "INR", "AED"],
       },
     },
     noticePeriod: {
@@ -284,6 +284,11 @@ const applicationSchema = new mongoose.Schema(
     remoteWork: {
       type: Boolean,
       default: false,
+    },
+    coverLetter: {
+      type: String,
+      trim: true,
+      maxlength: [5000, "Cover letter cannot exceed 5000 characters"],
     },
 
     // Review Information

@@ -321,7 +321,7 @@ router.post(
     body("expectedSalary.currency")
       .optional()
 
-      .isIn(["USD", "EUR", "GBP", "CAD", "AUD", "INR"])
+      .isIn(["USD", "EUR", "GBP", "CAD", "AUD", "INR", "AED"])
 
       .withMessage("Invalid currency"),
 

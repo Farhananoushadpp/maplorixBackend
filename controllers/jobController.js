@@ -543,6 +543,9 @@ export const createJob = async (req, res) => {
     await job.save();
     const saveTime = Date.now() - startTime;
 
+    // Invalidate cache so next GET returns fresh data
+    jobsCache.clear();
+
     console.log("✅ Job saved successfully!");
     console.log("🆔 Job ID:", job._id);
     console.log("⏱️ Save time:", saveTime, "ms");
@@ -725,6 +728,9 @@ export const updateJob = async (req, res) => {
 
     await job.save();
 
+    // Invalidate cache so next GET returns fresh data
+    jobsCache.clear();
+
     console.log("✅ Job updated successfully!");
     console.log("🆔 Updated Job ID:", job._id);
     console.log("📊 Collection:", job.constructor.modelName);
@@ -800,6 +806,9 @@ export const deleteJob = async (req, res) => {
 
     console.log("🗑️ Deleting job from database...");
     const deletedJob = await Job.findByIdAndDelete(id);
+
+    // Invalidate cache so next GET returns fresh data
+    jobsCache.clear();
 
     console.log("✅ Job deleted successfully!");
     console.log("🆔 Deleted Job ID:", deletedJob._id);
