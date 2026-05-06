@@ -2,7 +2,7 @@ import axios from "axios";
 
 // Create axios instance with base URL
 const api = axios.create({
-  baseURL: "http://localhost:4000/api",
+  baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:4000/api",
   timeout: 10000,
   headers: {
     "Content-Type": "application/json",
@@ -98,6 +98,95 @@ export const applicationsAPI = {
       return response.data;
     } catch (error) {
       console.error("Error fetching applications:", error);
+      throw error;
+    }
+  },
+};
+
+// Auth API
+export const authAPI = {
+  // Register user
+  register: async (userData, recaptchaToken) => {
+    try {
+      const response = await api.post("/auth/register", {
+        ...userData,
+        recaptchaToken,
+      });
+      return response.data;
+    } catch (error) {
+      console.error("Error registering user:", error);
+      throw error;
+    }
+  },
+
+  // Login user
+  login: async (credentials, recaptchaToken) => {
+    try {
+      const response = await api.post("/auth/login", {
+        ...credentials,
+        recaptchaToken,
+      });
+      return response.data;
+    } catch (error) {
+      console.error("Error logging in:", error);
+      throw error;
+    }
+  },
+
+  // Get current user profile
+  getProfile: async (token) => {
+    try {
+      const response = await api.get("/auth/me", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching profile:", error);
+      throw error;
+    }
+  },
+
+  // Update profile
+  updateProfile: async (token, profileData) => {
+    try {
+      const response = await api.put("/auth/me", profileData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      return response.data;
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      throw error;
+    }
+  },
+
+  // Change password
+  changePassword: async (token, passwordData) => {
+    try {
+      const response = await api.post("/auth/change-password", passwordData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      return response.data;
+    } catch (error) {
+      console.error("Error changing password:", error);
+      throw error;
+    }
+  },
+
+  // Refresh token
+  refreshToken: async (refreshToken) => {
+    try {
+      const response = await api.post("/auth/refresh", {
+        refreshToken,
+      });
+      return response.data;
+    } catch (error) {
+      console.error("Error refreshing token:", error);
       throw error;
     }
   },
