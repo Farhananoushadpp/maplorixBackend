@@ -54,15 +54,28 @@ export const verifyRecaptcha = async (req, res, next) => {
       body: new URLSearchParams({
         secret: recaptchaSecret,
         response: captchaToken,
-        remoteip: req.ip, // Optional: Include user IP for additional security
+        // remoteip removed — can cause rejection behind reverse proxies
       }),
     });
 
     const recaptchaData = await recaptchaResponse.json();
 
+    console.log("[reCAPTCHA] Google response:", JSON.stringify(recaptchaData));
+
     if (!recaptchaData.success) {
       const errorCodes = recaptchaData["error-codes"] || [];
-      console.error("reCAPTCHA verification failed:", errorCodes);
+      console.error(
+        "[reCAPTCHA] Verification FAILED. Error codes:",
+        errorCodes,
+      );
+      console.error(
+        "[reCAPTCHA] Token (first 20 chars):",
+        captchaToken?.substring(0, 20),
+      );
+      console.error(
+        "[reCAPTCHA] Secret key (first 10 chars):",
+        recaptchaSecret?.substring(0, 10),
+      );
 
       // Map Google error codes to human-readable messages
       const errorMessages = {
