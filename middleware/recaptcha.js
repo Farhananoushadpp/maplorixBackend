@@ -61,15 +61,29 @@ export const verifyRecaptcha = async (req, res, next) => {
     const recaptchaData = await recaptchaResponse.json();
 
     if (!recaptchaData.success) {
-      console.error(
-        "reCAPTCHA verification failed:",
-        recaptchaData["error-codes"],
-      );
+      const errorCodes = recaptchaData["error-codes"] || [];
+      console.error("reCAPTCHA verification failed:", errorCodes);
+
+      // Map Google error codes to human-readable messages
+      const errorMessages = {
+        "missing-input-secret": "reCAPTCHA secret key is missing",
+        "invalid-input-secret": "reCAPTCHA secret key is invalid",
+        "missing-input-response": "reCAPTCHA token is missing",
+        "invalid-input-response": "reCAPTCHA token is invalid or expired",
+        "bad-request": "reCAPTCHA request is malformed",
+        "timeout-or-duplicate":
+          "reCAPTCHA token has expired or was already used",
+      };
+
+      const userMessage = errorCodes.length
+        ? errorMessages[errorCodes[0]] || "reCAPTCHA verification failed"
+        : "reCAPTCHA verification failed. Please try again.";
+
       return res.status(400).json({
         success: false,
         error: "Validation Error",
-        message: "reCAPTCHA verification failed. Please try again.",
-        details: recaptchaData["error-codes"] || [],
+        message: userMessage,
+        details: errorCodes,
       });
     }
 
