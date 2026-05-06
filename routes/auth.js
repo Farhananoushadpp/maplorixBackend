@@ -13,6 +13,7 @@ import {
 } from "../controllers/authController.js";
 
 import auth from "../middleware/auth.js";
+import { verifyRecaptcha } from "../middleware/recaptcha.js";
 
 const router = express.Router();
 
@@ -20,7 +21,7 @@ const router = express.Router();
 
 router.post(
   "/register",
-
+  verifyRecaptcha, // Verify reCAPTCHA token
   [
     body("firstName")
       .notEmpty()
@@ -99,7 +100,7 @@ router.post(
 
 router.post(
   "/login",
-
+  verifyRecaptcha, // Verify reCAPTCHA token
   [
     body("email")
       .isEmail()

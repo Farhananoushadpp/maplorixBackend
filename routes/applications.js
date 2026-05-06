@@ -219,7 +219,6 @@ router.post(
   "/",
   upload.single("resume"), // Handle file upload
   handleMulterError, // Handle multer errors
-  verifyRecaptcha, // Verify reCAPTCHA token
   [
     body("fullName")
       .notEmpty()
