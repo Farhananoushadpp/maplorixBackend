@@ -19,15 +19,18 @@ import authRouter from "./routes/auth.js";
 import adminRouter from "./routes/admin.js";
 import pagesRouter from "./routes/pages.js";
 
-// Load environment variables
-dotenv.config();
-
 // Get current directory
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Load environment variables based on NODE_ENV
+const envFile = process.env.NODE_ENV === "production" ? ".env.production" : ".env";
+dotenv.config({ path: path.resolve(__dirname, envFile) });
+
 // Initialize Express app
 const app = express();
+
+app.set('trust proxy', 1);
 
 // Security middleware
 app.use(

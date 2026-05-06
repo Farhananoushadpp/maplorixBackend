@@ -49,7 +49,6 @@ const auth = async (req, res, next) => {
         message: "Token is valid but user not found",
       });
     }
-
     // Check if user is active (early return to avoid unnecessary operations)
     if (!user.isActive) {
       return res.status(401).json({
@@ -57,7 +56,6 @@ const auth = async (req, res, next) => {
         message: "Your account has been deactivated",
       });
     }
-
     // Cache the user data with memory management
     if (userCache.size >= MAX_CACHE_SIZE) {
       // Clean up oldest entries when cache is full
