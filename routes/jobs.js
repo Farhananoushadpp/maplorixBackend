@@ -64,10 +64,9 @@ router.post(
       .withMessage("Location must be between 2 and 100 characters"),
 
     body("postedBy")
-      .notEmpty()
-      .withMessage("postedBy is required")
+      .optional()
       .isIn(["user", "admin"])
-      .withMessage("postedBy must be either 'user' or 'admin"),
+      .withMessage("postedBy must be either 'user' or 'admin'"),
 
     body("type")
       .optional()

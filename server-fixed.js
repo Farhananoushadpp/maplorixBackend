@@ -24,14 +24,13 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Load environment variables based on NODE_ENV
-const envFile =
-  process.env.NODE_ENV === "production" ? ".env.production" : ".env";
+const envFile = process.env.NODE_ENV === "production" ? ".env.production" : ".env";
 dotenv.config({ path: path.resolve(__dirname, envFile) });
 
 // Initialize Express app
 const app = express();
 
-app.set("trust proxy", 1);
+app.set('trust proxy', 1);
 
 // Security middleware
 app.use(
@@ -180,7 +179,7 @@ app.get("/api/test", (req, res) => {
     success: true,
     message: "API working",
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || "development",
+    environment: process.env.NODE_ENV || "development"
   });
 });
 
@@ -201,14 +200,14 @@ app.use("/api/*", (req, res) => {
     message: `Cannot ${req.method} ${req.originalUrl}`,
     availableEndpoints: [
       "/api/jobs",
-      "/api/contacts",
+      "/api/contacts", 
       "/api/applications",
       "/api/auth",
       "/api/admin",
       "/api/pages",
       "/api/test",
-      "/health",
-    ],
+      "/health"
+    ]
   });
 });
 
@@ -226,9 +225,10 @@ if (process.env.NODE_ENV === "production") {
       return res.status(404).json({
         success: false,
         error: "Not found",
-        message: `Cannot ${req.method} ${req.originalUrl}`,
+        message: `Cannot ${req.method} ${req.originalUrl}`
       });
     }
+    
     // Serve React app for all other routes
     res.sendFile(path.join(frontendDistPath, "index.html"));
   });
@@ -260,61 +260,53 @@ if (process.env.NODE_ENV === "production") {
       return res.status(404).json({
         success: false,
         error: "API Route not found",
-        message: `Cannot ${req.method} ${req.originalUrl}`,
+        message: `Cannot ${req.method} ${req.originalUrl}`
       });
     }
-
+    
     // For development, you can redirect to Vite dev server or serve a simple page
     res.json({
       message: "Frontend route detected",
       path: req.path,
       note: "In development, frontend should be served by Vite dev server",
-      frontendUrl: "http://localhost:5173",
+      frontendUrl: "http://localhost:5173"
     });
   });
 }
 
 // Global error handler
 app.use((err, req, res, next) => {
-  console.error("Global Error:", err.message);
+  console.error(err.stack);
 
   // Mongoose validation error
   if (err.name === "ValidationError") {
-    const errors = Object.values(err.errors || {}).map((e) => e.message);
+    const errors = Object.values(err.errors).map((e) => e.message);
     return res.status(400).json({
-      success: false,
       error: "Validation Error",
-      message: errors.join(", ") || "Validation failed",
-      errorCode: "VALIDATION_ERROR",
+      message: errors.join(", "),
     });
   }
 
   // Mongoose duplicate key error
   if (err.code === 11000) {
-    return res.status(409).json({
-      success: false,
+    return res.status(400).json({
       error: "Duplicate Error",
-      message: "User already exists.",
-      errorCode: "USER_ALREADY_EXISTS",
+      message: "Resource already exists",
     });
   }
 
   // JWT error
   if (err.name === "JsonWebTokenError") {
     return res.status(401).json({
-      success: false,
       error: "Authentication Error",
       message: "Invalid token",
-      errorCode: "INVALID_TOKEN",
     });
   }
 
   // Default error
   res.status(err.status || 500).json({
-    success: false,
     error: err.name || "Internal Server Error",
     message: err.message || "Something went wrong",
-    errorCode: "SERVER_ERROR",
   });
 });
 
@@ -361,11 +353,19 @@ const connectDB = async () => {
       useUnifiedTopology: true,
       useCreateIndex: true,
       useFindAndModify: false,
-      poolSize: 100, // Connection pool size for Mongoose 5
-      serverSelectionTimeoutMS: 5000,
-      socketTimeoutMS: 45000,
-      connectTimeoutMS: 10000,
-      family: 4,
+      // Enhanced connection pooling for high concurrency
+      maxPoolSize: 100, // Increased for concurrent users
+      minPoolSize: 10, // Maintain minimum connections
+      maxIdleTimeMS: 30000, // Keep connections open for 30 seconds
+      serverSelectionTimeoutMS: 5000, // How long to try selecting a server
+      socketTimeoutMS: 45000, // How long a send or receive on a socket can take
+      connectTimeoutMS: 10000, // How long to try connecting
+      heartbeatFrequencyMS: 10000, // Check server status every 10 seconds
+      retryWrites: true, // Retry write operations
+      retryReads: true, // Retry read operations
+      family: 4, // Use IPv4, skip trying IPv6
+      bufferMaxEntries: 0, // Disable mongoose buffering
+      bufferCommands: false, // Disable mongoose buffering
     });
 
     console.log("✅ MongoDB Connected Successfully!");

@@ -251,8 +251,50 @@ export const sendInterviewEmail = async (application, interviewDetails) => {
   }
 };
 
+// Send OTP verification email
+export const sendOtpEmail = async (email, otp) => {
+  try {
+    const transporter = createTransporter();
+
+    const mailOptions = {
+      from: process.env.EMAIL_FROM || process.env.EMAIL_USER || "noreply@maplorix.com",
+      to: email,
+      subject: "Maplorix Verification Code (OTP)",
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
+          <div style="background: #023341; color: white; padding: 20px; text-align: center;">
+            <h1 style="margin: 0; font-size: 24px;">Maplorix Verification Code</h1>
+          </div>
+          <div style="padding: 30px; background: #ffffff;">
+            <p style="font-size: 16px; color: #333333;">Your verification code for registration is:</p>
+            <div style="background: #f4f6f8; padding: 15px; text-align: center; border-radius: 6px; margin: 20px 0;">
+              <span style="font-size: 32px; font-weight: bold; letter-spacing: 6px; color: #4CBD99;">${otp}</span>
+            </div>
+            <p style="font-size: 14px; color: #666666;">This code is valid for 10 minutes. Do not share this code with anyone.</p>
+            <p style="font-size: 14px; color: #666666;">If you did not request this code, please ignore this email.</p>
+          </div>
+          <div style="background: #f4f6f8; color: #888888; padding: 15px; text-align: center; font-size: 12px;">
+            <p style="margin: 0;">&copy; Maplorix Job Consultancy. All rights reserved.</p>
+          </div>
+        </div>
+      `,
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log(`OTP email sent successfully to ${email}`);
+  } catch (error) {
+    console.warn("SMTP send notice:", error.message);
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`[DEV MODE OTP] Email: ${email}, OTP: ${otp}`);
+      return;
+    }
+    throw error;
+  }
+};
+
 export default {
   sendContactEmail,
   sendApplicationEmail,
   sendInterviewEmail,
+  sendOtpEmail,
 };

@@ -42,16 +42,15 @@ try {
   process.exit(1); // Exit if we can't create the uploads directory
 }
 
+import crypto from "crypto";
+
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     try {
-      // Ensure the directory exists for each upload
       if (!fs.existsSync(uploadsDir)) {
-        console.log("Creating uploads directory:", uploadsDir);
         fs.mkdirSync(uploadsDir, { recursive: true });
       }
-      console.log("Using uploads directory:", uploadsDir);
       cb(null, uploadsDir);
     } catch (error) {
       console.error("Error in multer destination:", error);
@@ -59,16 +58,13 @@ const storage = multer.diskStorage({
     }
   },
   filename: (req, file, cb) => {
-    // Enhanced unique filename for concurrent users
-    const timestamp = Date.now();
-    const randomSuffix = Math.round(Math.random() * 1e9);
-    const processId = process.pid;
-    const ext = path.extname(file.originalname);
-    const sanitizedName = file.originalname
+    const uuid = crypto.randomUUID();
+    const ext = path.extname(file.originalname || "").toLowerCase();
+    const sanitizedName = path
+      .basename(file.originalname || "cv", ext)
       .replace(/[^a-zA-Z0-9.-]/g, "_")
-      .substring(0, 50);
-    const filename = `resume-${timestamp}-${randomSuffix}-${processId}-${sanitizedName}${ext}`;
-    console.log("Generated filename:", filename);
+      .substring(0, 30);
+    const filename = `cv-${uuid}-${sanitizedName}${ext}`;
     cb(null, filename);
   },
 });

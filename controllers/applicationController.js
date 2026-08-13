@@ -168,22 +168,52 @@ export const submitApplication = async (req, res) => {
       try {
         jobExists = await Job.findById(job);
         if (!jobExists) {
+          if (req.file?.path) {
+            try {
+              const fsPromises = (await import("fs")).promises;
+              await fsPromises.unlink(req.file.path);
+            } catch (e) {}
+          }
           return res.status(400).json({
             success: false,
             error: "Validation Error",
             message: "The specified job does not exist",
+            errorCode: "VALIDATION_ERROR",
+          });
+        }
+
+        // Check if applicant already applied to this specific job
+        const existingApplication = await Application.findOne({
+          email: email.trim().toLowerCase(),
+          job: job,
+        });
+
+        if (existingApplication) {
+          if (req.file?.path) {
+            try {
+              const fsPromises = (await import("fs")).promises;
+              await fsPromises.unlink(req.file.path);
+            } catch (e) {}
+          }
+          return res.status(409).json({
+            success: false,
+            message: "You have already applied to this position.",
+            errorCode: "DUPLICATE_APPLICATION",
           });
         }
       } catch (jobError) {
-        console.error("Error verifying job:", jobError);
+        console.error("Error verifying job or application:", jobError);
+        if (req.file?.path) {
+          try {
+            const fsPromises = (await import("fs")).promises;
+            await fsPromises.unlink(req.file.path);
+          } catch (e) {}
+        }
         return res.status(500).json({
           success: false,
           error: "Server Error",
           message: "Failed to verify job information",
-          details:
-            process.env.NODE_ENV === "development"
-              ? jobError.message
-              : undefined,
+          errorCode: "SERVER_ERROR",
         });
       }
     }
@@ -335,11 +365,8 @@ export const submitApplication = async (req, res) => {
         return res.status(409).json({
           success: false,
           error: "Duplicate Application",
-          message: "You have already applied to this position",
-          details:
-            process.env.NODE_ENV === "development"
-              ? saveError.message
-              : undefined,
+          message: "You have already applied to this position.",
+          errorCode: "DUPLICATE_APPLICATION",
         });
       }
 

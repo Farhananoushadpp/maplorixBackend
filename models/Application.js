@@ -392,6 +392,7 @@ applicationSchema.virtual("formattedExpectedSalary").get(function () {
 });
 
 // Index for better search performance
+applicationSchema.index({ email: 1, job: 1 }, { unique: true, sparse: true });
 applicationSchema.index({ email: 1 });
 applicationSchema.index({ job: 1, status: 1 });
 applicationSchema.index({ status: 1, createdAt: -1 });

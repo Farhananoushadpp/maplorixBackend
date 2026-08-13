@@ -25,27 +25,10 @@ const handleValidationErrors = (req, res, next) => {
   next();
 };
 
-// Simple in-memory cache for jobs (for production, use Redis)
-const jobsCache = new Map();
-const CACHE_TTL = 2 * 60 * 1000; // 2 minutes
-
 // Get all jobs for Dashboard (GET /api/jobs) - Optimized for concurrency
 export const getAllJobsForDashboard = async (req, res) => {
   try {
     console.log("📊 Getting all jobs for Dashboard");
-
-    // Check cache first
-    const cacheKey = "jobs-dashboard";
-    const cachedJobs = jobsCache.get(cacheKey);
-
-    if (cachedJobs && Date.now() - cachedJobs.timestamp < CACHE_TTL) {
-      console.log("📋 Serving jobs from cache");
-      return res.json({
-        success: true,
-        jobs: cachedJobs.data,
-        cached: true,
-      });
-    }
 
     // Parse pagination parameters
     const page = parseInt(req.query.page) || 1;
@@ -57,7 +40,7 @@ export const getAllJobsForDashboard = async (req, res) => {
       .select(
         "_id title company location type postedBy description experience requirements salary category createdAt",
       )
-      .lean() // Returns plain JavaScript objects, faster
+      .lean()
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
@@ -78,24 +61,6 @@ export const getAllJobsForDashboard = async (req, res) => {
       createdAt: job.createdAt,
     }));
 
-    // Cache the results (only cache first page for better performance)
-    if (page === 1) {
-      jobsCache.set(cacheKey, {
-        data: transformedJobs,
-        timestamp: Date.now(),
-      });
-
-      // Clean up old cache entries periodically
-      if (jobsCache.size > 10) {
-        const now = Date.now();
-        for (const [key, value] of jobsCache.entries()) {
-          if (now - value.timestamp > CACHE_TTL) {
-            jobsCache.delete(key);
-          }
-        }
-      }
-    }
-
     res.json({
       success: true,
       jobs: transformedJobs,
@@ -104,11 +69,11 @@ export const getAllJobsForDashboard = async (req, res) => {
         limit,
         total: await Job.countDocuments({ isActive: true }),
       },
-      cached: false,
     });
   } catch (error) {
     console.error("Error fetching dashboard jobs:", error);
     res.status(500).json({
+      success: false,
       error: "Server Error",
       message: "Failed to fetch jobs",
     });
@@ -460,13 +425,7 @@ export const createJob = async (req, res) => {
       });
     }
 
-    if (!postedBy || (postedBy !== "user" && postedBy !== "admin")) {
-      console.log("❌ Validation failed: Invalid postedBy value:", postedBy);
-      return res.status(400).json({
-        error: "Validation Error",
-        message: "postedBy must be either 'user' or 'admin'",
-      });
-    }
+    const postedByVal = postedBy || (req.user?.role === "admin" ? "admin" : "user");
 
     console.log("✅ Validation passed");
 
@@ -476,7 +435,7 @@ export const createJob = async (req, res) => {
       company: req.body.company?.trim() || "Maplorix",
       location: location.trim(),
       type: req.body.type || "Full-time",
-      postedBy: postedBy, // Store as string: "user" or "admin"
+      postedBy: postedByVal,
       description: req.body.description?.trim() || "",
       requirements: req.body.requirements?.trim() || "",
       salary: (() => {
@@ -540,15 +499,11 @@ export const createJob = async (req, res) => {
     console.log("🗄️ Collection:", job.collection.name);
 
     const startTime = Date.now();
+    // Save job
     await job.save();
-    const saveTime = Date.now() - startTime;
-
-    // Invalidate cache so next GET returns fresh data
-    jobsCache.clear();
 
     console.log("✅ Job saved successfully!");
     console.log("🆔 Job ID:", job._id);
-    console.log("⏱️ Save time:", saveTime, "ms");
     console.log("📊 Collection:", job.constructor.modelName);
     console.log("🗄️ Database:", mongoose.connection.name);
 
@@ -727,9 +682,6 @@ export const updateJob = async (req, res) => {
     Object.assign(job, updateData);
 
     await job.save();
-
-    // Invalidate cache so next GET returns fresh data
-    jobsCache.clear();
 
     console.log("✅ Job updated successfully!");
     console.log("🆔 Updated Job ID:", job._id);

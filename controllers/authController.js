@@ -1,19 +1,28 @@
 import { validationResult } from "express-validator";
 import mongoose from "mongoose";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 import User from "../models/User.js";
 import Contact from "../models/Contact.js";
+import Otp from "../models/Otp.js";
+import { sendOtpEmail } from "../services/emailService.js";
+
+// Helper normalizers
+const normalizeEmail = (email) => (email ? String(email).trim().toLowerCase() : "");
+const normalizeMobile = (mobile) => (mobile ? String(mobile).trim().replace(/\s+/g, "") : "");
 
 // Validation middleware
 const handleValidationErrors = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({
+      success: false,
       error: "Validation Error",
       message: errors
         .array()
         .map((err) => err.msg)
         .join(", "),
+      errorCode: "VALIDATION_ERROR",
     });
   }
   next();
@@ -26,83 +35,242 @@ const generateToken = (userId) => {
   });
 };
 
-// Register a new user
-export const register = async (req, res) => {
+// Send OTP to user's email
+export const sendOtp = async (req, res) => {
   try {
-    const { firstName, lastName, email, password, phone, message } = req.body;
+    const email = normalizeEmail(req.body.email);
+    const mobile = normalizeMobile(req.body.mobile || req.body.phone);
 
-    console.log("🔍 Registration attempt:");
-    console.log("  First Name:", firstName);
-    console.log("  Last Name:", lastName);
-    console.log("  Email:", email);
-    console.log("  Phone:", phone);
-    console.log("  Request body:", JSON.stringify(req.body));
-
-    // Check database connection
-    console.log("  DB state:", mongoose.connection.readyState);
-    console.log("  DB host:", mongoose.connection.host);
-
-    // Check if user already exists
-    const existingUser = await User.findOne({ email });
-    console.log("  Existing user found:", !!existingUser);
-
-    if (existingUser) {
-      console.log("  User already exists with email:", email);
+    if (!email) {
       return res.status(400).json({
-        error: "Registration Error",
-        message: "User with this email already exists",
+        success: false,
+        message: "Email is required.",
+        errorCode: "VALIDATION_ERROR",
       });
     }
 
-    // Step 1: Save basic details to Contacts collection
-    console.log("  Step 1: Creating contact...");
-    const contact = new Contact({
-      name: `${firstName} ${lastName}`,
-      email: email,
-      phone: phone || "",
-      subject: "User Registration",
-      message: message || "New user registration",
-      category: "general",
-      status: "pending",
+    // Check if user already exists by email or mobile
+    const existingUserFilter = [{ email }];
+    if (mobile) {
+      existingUserFilter.push({ mobile }, { phone: mobile });
+    }
+
+    const existingUser = await User.findOne({ $or: existingUserFilter });
+    if (existingUser) {
+      return res.status(409).json({
+        success: false,
+        message: "User already exists.",
+        errorCode: "USER_ALREADY_EXISTS",
+      });
+    }
+
+    // Generate 6-digit numeric OTP
+    const rawOtp = crypto.randomInt(100000, 1000000).toString();
+    const otpHash = crypto.createHash("sha256").update(rawOtp).digest("hex");
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes TTL
+
+    // Remove any existing OTP for this email
+    await Otp.deleteMany({ email });
+
+    // Create new OTP document
+    const otpDoc = new Otp({
+      email,
+      mobile: mobile || "",
+      otpHash,
+      expiresAt,
+      attempts: 0,
+      isVerified: false,
     });
 
-    console.log("  Contact object created:", !!contact);
-    await contact.save();
-    console.log("  Contact saved successfully. ID:", contact._id);
+    await otpDoc.save();
 
-    // Step 2: Create login credentials in Users collection
-    console.log("  Step 2: Creating user...");
-    const user = new User({
+    // Dispatch OTP via email (do NOT log or return raw OTP)
+    await sendOtpEmail(email, rawOtp);
+
+    return res.status(200).json({
+      success: true,
+      message: "OTP sent successfully to your email.",
+    });
+  } catch (error) {
+    console.error("Error sending OTP:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to send OTP. Please try again.",
+      errorCode: "SERVER_ERROR",
+    });
+  }
+};
+
+// Verify OTP
+export const verifyOtp = async (req, res) => {
+  try {
+    const email = normalizeEmail(req.body.email);
+    const rawOtp = req.body.otp ? String(req.body.otp).trim() : "";
+
+    if (!email || !rawOtp) {
+      return res.status(400).json({
+        success: false,
+        message: "Email and OTP are required.",
+        errorCode: "VALIDATION_ERROR",
+      });
+    }
+
+    const otpRecord = await Otp.findOne({ email });
+
+    if (!otpRecord || otpRecord.isVerified || new Date() > otpRecord.expiresAt) {
+      return res.status(400).json({
+        success: false,
+        message: "OTP has expired or is invalid.",
+        errorCode: "INVALID_OTP",
+      });
+    }
+
+    if (otpRecord.attempts >= 5) {
+      return res.status(400).json({
+        success: false,
+        message: "Maximum OTP attempts exceeded. Please request a new OTP.",
+        errorCode: "MAX_OTP_ATTEMPTS_EXCEEDED",
+      });
+    }
+
+    otpRecord.attempts += 1;
+
+    const providedHash = crypto.createHash("sha256").update(rawOtp).digest("hex");
+    if (providedHash !== otpRecord.otpHash) {
+      await otpRecord.save();
+      return res.status(400).json({
+        success: false,
+        message: "Invalid OTP.",
+        errorCode: "INVALID_OTP",
+      });
+    }
+
+    // OTP is valid - mark verified and issue temporary token
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+    otpRecord.isVerified = true;
+    otpRecord.verificationToken = verificationToken;
+    await otpRecord.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "OTP verified successfully.",
+      data: {
+        verificationToken,
+      },
+    });
+  } catch (error) {
+    console.error("Error verifying OTP:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to verify OTP.",
+      errorCode: "SERVER_ERROR",
+    });
+  }
+};
+
+// Register a new user
+export const register = async (req, res) => {
+  try {
+    const {
       firstName,
       lastName,
       email,
       password,
-      role: "user", // Default role as per requirements
-      department: "General",
-      phone: phone || "",
+      mobile,
+      phone,
+      nationality,
+      currentlyLocated,
+      visaStatus,
+      attachedCv,
+      message,
+    } = req.body;
+
+    const normalizedEmail = normalizeEmail(email);
+    const normalizedMobile = normalizeMobile(mobile || phone);
+
+    if (!normalizedEmail) {
+      return res.status(400).json({
+        success: false,
+        message: "Email is required.",
+        errorCode: "VALIDATION_ERROR",
+      });
+    }
+
+    // Check if user already exists by email or mobile
+    const existingUserFilter = [{ email: normalizedEmail }];
+    if (normalizedMobile) {
+      existingUserFilter.push({ mobile: normalizedMobile }, { phone: normalizedMobile });
+    }
+
+    const existingUser = await User.findOne({ $or: existingUserFilter });
+    if (existingUser) {
+      return res.status(409).json({
+        success: false,
+        message: "User already exists.",
+        errorCode: "USER_ALREADY_EXISTS",
+      });
+    }
+
+    // Validate visaStatus enum if provided
+    const validVisaStatuses = ["visitVisa", "residenceVisa", "spouseVisa"];
+    if (visaStatus && !validVisaStatuses.includes(visaStatus)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid visaStatus. Must be visitVisa, residenceVisa, or spouseVisa.",
+        errorCode: "VALIDATION_ERROR",
+      });
+    }
+
+    // Optional: Save contact entry
+    try {
+      const contact = new Contact({
+        name: `${firstName} ${lastName}`,
+        email: normalizedEmail,
+        phone: normalizedMobile || "",
+        subject: "User Registration",
+        message: message || "New user registration",
+        category: "general",
+        status: "pending",
+      });
+      await contact.save();
+    } catch (contactErr) {
+      console.warn("Contact entry creation warning:", contactErr.message);
+    }
+
+    // Create user document
+    const user = new User({
+      firstName: firstName?.trim(),
+      lastName: lastName?.trim(),
+      email: normalizedEmail,
+      mobile: normalizedMobile || undefined,
+      phone: normalizedMobile || "",
+      password,
+      nationality: nationality?.trim(),
+      currentlyLocated: currentlyLocated?.trim(),
+      visaStatus: visaStatus || undefined,
+      attachedCv: attachedCv || undefined,
+      role: req.body.role || "user",
+      department: req.body.department || "General",
     });
 
-    console.log("  User object created:", !!user);
     await user.save();
-    console.log("  User saved successfully. ID:", user._id);
 
-    // Step 3: Generate JWT token
+    // Clean up OTP document if one existed for this email
+    await Otp.deleteMany({ email: normalizedEmail });
+
+    // Generate JWT token
     const token = generateToken(user._id);
 
-    // Remove password from response
-    user.password = undefined;
+    // Omit password from response
+    const userResponse = user.toObject();
+    delete userResponse.password;
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
-      message: "User registered successfully",
+      message: "Registration completed successfully.",
       data: {
-        user,
+        user: userResponse,
         token,
-        contact: {
-          id: contact._id,
-          name: contact.name,
-          email: contact.email,
-        },
         routing: {
           redirectTo: user.role === "admin" ? "/admin/dashboard" : "/website",
           role: user.role,
@@ -112,9 +280,30 @@ export const register = async (req, res) => {
     });
   } catch (error) {
     console.error("Error registering user:", error);
-    res.status(500).json({
-      error: "Server Error",
-      message: "Failed to register user",
+
+    // Handle MongoDB duplicate key error (code 11000)
+    if (error.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: "User already exists.",
+        errorCode: "USER_ALREADY_EXISTS",
+      });
+    }
+
+    if (error.name === "ValidationError") {
+      return res.status(400).json({
+        success: false,
+        message: Object.values(error.errors)
+          .map((e) => e.message)
+          .join(", "),
+        errorCode: "VALIDATION_ERROR",
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to register user.",
+      errorCode: "SERVER_ERROR",
     });
   }
 };
@@ -123,86 +312,59 @@ export const register = async (req, res) => {
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
+    const normalizedEmail = normalizeEmail(email);
 
-    console.log("🔍 Login attempt:");
-    console.log("  Email:", email);
-    console.log("  Password provided:", !!password);
-    console.log("  Request body:", JSON.stringify(req.body));
-
-    // Check database connection
-    console.log("  DB state:", mongoose.connection.readyState);
-    console.log("  DB host:", mongoose.connection.host);
-
-    // Find user and include password
-    const user = await User.findOne({ email }).select("+password");
-    console.log("  User found:", !!user);
-
-    if (user) {
-      console.log("  User email:", user.email);
-      console.log("  User active:", user.isActive);
-      console.log("  Password exists:", !!user.password);
-    } else {
-      // Try to find all users to see what's in DB
-      const allUsers = await User.find({});
-      console.log("  All users in DB:", allUsers.length);
-      allUsers.forEach((u) => console.log("    -", u.email));
+    if (!normalizedEmail || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Email and password are required.",
+        errorCode: "VALIDATION_ERROR",
+      });
     }
+
+    // Find user and include password field for comparison
+    const user = await User.findOne({ email: normalizedEmail }).select("+password");
 
     if (!user) {
-      console.log("❌ User not found");
       return res.status(401).json({
-        error: "Authentication Error",
-        message: "Invalid email or password",
+        success: false,
+        message: "Invalid email or password.",
+        errorCode: "INVALID_CREDENTIALS",
       });
     }
 
-    // Check if user is active
     if (!user.isActive) {
-      console.log("❌ User is not active");
       return res.status(401).json({
-        error: "Authentication Error",
-        message: "Your account has been deactivated",
+        success: false,
+        message: "Your account has been deactivated.",
+        errorCode: "ACCOUNT_DEACTIVATED",
       });
     }
 
-    // Compare password
-    let isPasswordValid;
-    try {
-      isPasswordValid = await user.comparePassword(password);
-      console.log("  Password valid:", isPasswordValid);
-    } catch (error) {
-      console.error("  Password comparison error:", error);
-      return res.status(500).json({
-        error: "Server Error",
-        message: "Password verification failed",
-      });
-    }
-
+    const isPasswordValid = await user.comparePassword(password);
     if (!isPasswordValid) {
-      console.log("❌ Password comparison failed");
       return res.status(401).json({
-        error: "Authentication Error",
-        message: "Invalid email or password",
+        success: false,
+        message: "Invalid email or password.",
+        errorCode: "INVALID_CREDENTIALS",
       });
     }
 
-    console.log("✅ Login successful for:", user.email);
-
-    // Update last login
+    // Update last login timestamp
     user.lastLogin = new Date();
     await user.save();
 
     // Generate token
     const token = generateToken(user._id);
 
-    // Remove password from response
-    user.password = undefined;
+    const userResponse = user.toObject();
+    delete userResponse.password;
 
-    res.json({
+    return res.status(200).json({
       success: true,
-      message: "Login successful",
+      message: "Login successful.",
       data: {
-        user,
+        user: userResponse,
         token,
         routing: {
           redirectTo: user.role === "admin" ? "/admin/dashboard" : "/website",
@@ -213,27 +375,10 @@ export const login = async (req, res) => {
     });
   } catch (error) {
     console.error("Error logging in user:", error);
-    console.error("Error stack:", error.stack);
-    console.error("Request body:", req.body);
-
-    // Check for specific error types
-    if (error.name === "ValidationError") {
-      return res.status(400).json({
-        error: "Validation Error",
-        message: error.message,
-      });
-    }
-
-    if (error.name === "CastError") {
-      return res.status(400).json({
-        error: "Invalid Data",
-        message: "Invalid email format",
-      });
-    }
-
-    res.status(500).json({
-      error: "Server Error",
-      message: "Failed to login",
+    return res.status(500).json({
+      success: false,
+      message: "Failed to login.",
+      errorCode: "SERVER_ERROR",
     });
   }
 };
@@ -245,50 +390,39 @@ export const refreshToken = async (req, res) => {
 
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return res.status(401).json({
-        error: "Authentication Error",
-        message: "No token provided",
+        success: false,
+        message: "No token provided.",
+        errorCode: "UNAUTHORIZED",
       });
     }
 
     const token = authHeader.split(" ")[1];
-
-    // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Find user
     const user = await User.findById(decoded.userId);
-
     if (!user || !user.isActive) {
       return res.status(401).json({
-        error: "Authentication Error",
-        message: "Invalid token or user not found",
+        success: false,
+        message: "Invalid token or user not found.",
+        errorCode: "UNAUTHORIZED",
       });
     }
 
-    // Generate new token
     const newToken = generateToken(user._id);
 
-    res.json({
+    return res.status(200).json({
       success: true,
-      message: "Token refreshed successfully",
+      message: "Token refreshed successfully.",
       data: {
         token: newToken,
       },
     });
   } catch (error) {
     console.error("Error refreshing token:", error);
-    if (
-      error.name === "JsonWebTokenError" ||
-      error.name === "TokenExpiredError"
-    ) {
-      return res.status(401).json({
-        error: "Authentication Error",
-        message: "Invalid or expired token",
-      });
-    }
-    res.status(500).json({
-      error: "Server Error",
-      message: "Failed to refresh token",
+    return res.status(401).json({
+      success: false,
+      message: "Invalid or expired token.",
+      errorCode: "UNAUTHORIZED",
     });
   }
 };
@@ -296,35 +430,25 @@ export const refreshToken = async (req, res) => {
 // Get current user profile
 export const getProfile = async (req, res) => {
   try {
-    // Get user from database using _id from JWT token
     const user = await User.findById(req.user._id);
 
     if (!user || !user.isActive) {
       return res.status(401).json({
-        error: "Authentication Error",
-        message: "User not found",
+        success: false,
+        message: "User not found.",
+        errorCode: "UNAUTHORIZED",
       });
     }
 
-    // Get user permissions
-    const permissions = user.getPermissions();
+    const userResponse = user.toObject();
+    delete userResponse.password;
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       data: {
         user: {
-          _id: user._id,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          email: user.email,
-          role: user.role,
-          department: user.department,
-          phone: user.phone,
-          isActive: user.isActive,
-          permissions: user.permissions,
-          profile: user.profile,
-          createdAt: user.createdAt,
-          updatedAt: user.updatedAt,
+          ...userResponse,
+          permissions: user.getPermissions(),
           fullName: user.fullName,
           timeSinceLastLogin: user.timeSinceLastLogin,
           id: user._id,
@@ -333,9 +457,10 @@ export const getProfile = async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching user profile:", error);
-    res.status(500).json({
-      error: "Server Error",
-      message: "Failed to fetch user profile",
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch user profile.",
+      errorCode: "SERVER_ERROR",
     });
   }
 };
@@ -347,26 +472,33 @@ export const updateProfile = async (req, res) => {
 
     if (!user || !user.isActive) {
       return res.status(401).json({
-        error: "Authentication Error",
-        message: "User not found",
+        success: false,
+        message: "User not found.",
+        errorCode: "UNAUTHORIZED",
       });
     }
 
-    // Update user
     const updates = req.body;
+    delete updates.password; // Don't allow password update via profile endpoint
+    delete updates.role; // Don't allow role escalation
+
     Object.assign(user, updates);
     await user.save();
 
-    res.json({
+    const userResponse = user.toObject();
+    delete userResponse.password;
+
+    return res.status(200).json({
       success: true,
-      message: "Profile updated successfully",
-      data: user,
+      message: "Profile updated successfully.",
+      data: userResponse,
     });
   } catch (error) {
     console.error("Error updating profile:", error);
-    res.status(500).json({
-      error: "Server Error",
-      message: "Failed to update profile",
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update profile.",
+      errorCode: "SERVER_ERROR",
     });
   }
 };
@@ -378,36 +510,36 @@ export const changePassword = async (req, res) => {
 
     if (!user || !user.isActive) {
       return res.status(401).json({
-        error: "Authentication Error",
-        message: "User not found",
+        success: false,
+        message: "User not found.",
+        errorCode: "UNAUTHORIZED",
       });
     }
 
     const { currentPassword, newPassword } = req.body;
-
-    // Verify current password
     const isCurrentPasswordValid = await user.comparePassword(currentPassword);
 
     if (!isCurrentPasswordValid) {
       return res.status(400).json({
-        error: "Validation Error",
-        message: "Current password is incorrect",
+        success: false,
+        message: "Current password is incorrect.",
+        errorCode: "VALIDATION_ERROR",
       });
     }
 
-    // Update password
     user.password = newPassword;
     await user.save();
 
-    res.json({
+    return res.status(200).json({
       success: true,
-      message: "Password changed successfully",
+      message: "Password changed successfully.",
     });
   } catch (error) {
     console.error("Error changing password:", error);
-    res.status(500).json({
-      error: "Server Error",
-      message: "Failed to change password",
+    return res.status(500).json({
+      success: false,
+      message: "Failed to change password.",
+      errorCode: "SERVER_ERROR",
     });
   }
 };

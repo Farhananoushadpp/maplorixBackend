@@ -56,6 +56,35 @@ const userSchema = new mongoose.Schema(
       trim: true,
       maxlength: [20, "Phone number cannot exceed 20 characters"],
     },
+    mobile: {
+      type: String,
+      unique: true,
+      sparse: true,
+      trim: true,
+      maxlength: [20, "Mobile number cannot exceed 20 characters"],
+    },
+    nationality: {
+      type: String,
+      trim: true,
+      maxlength: [100, "Nationality cannot exceed 100 characters"],
+    },
+    currentlyLocated: {
+      type: String,
+      trim: true,
+      maxlength: [100, "Location cannot exceed 100 characters"],
+    },
+    visaStatus: {
+      type: String,
+      enum: ["visitVisa", "residenceVisa", "spouseVisa"],
+      trim: true,
+    },
+    attachedCv: {
+      filename: String,
+      originalName: String,
+      mimetype: String,
+      size: Number,
+      path: String,
+    },
     isActive: {
       type: Boolean,
       default: true,
@@ -211,6 +240,8 @@ userSchema.methods.hasPermission = function (permission) {
 };
 
 // Index for better search performance
+userSchema.index({ email: 1 }, { unique: true });
+userSchema.index({ mobile: 1 }, { unique: true, sparse: true });
 userSchema.index({ role: 1, isActive: 1 });
 userSchema.index({ department: 1 });
 userSchema.index({ firstName: "text", lastName: "text" });
