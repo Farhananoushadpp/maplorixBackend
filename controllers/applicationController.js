@@ -21,19 +21,17 @@ const handleValidationErrors = (req, res, next) => {
   const errors = validationResult(req);
 
   if (!errors.isEmpty()) {
-    console.log(
-      "❌ VALIDATION ERRORS:",
-      JSON.stringify(errors.array(), null, 2),
-    );
-    console.log("📝 Request body keys:", Object.keys(req.body));
-    console.log("📝 Request body:", JSON.stringify(req.body, null, 2));
+    // Clean up uploaded file if validation fails (multer runs before validators)
+    if (req.file?.path) {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (e) {}
+    }
+
     return res.status(400).json({
-      error: "Validation Error",
-      message: errors
-        .array()
-        .map((err) => `${err.path}: ${err.msg}`)
-        .join(", "),
-      details: errors.array(),
+      success: false,
+      message: "Please complete all required fields.",
+      errorCode: "VALIDATION_ERROR",
     });
   }
 
@@ -42,45 +40,55 @@ const handleValidationErrors = (req, res, next) => {
 
 // Submit new job application
 export const submitApplication = async (req, res) => {
-  // Log the incoming request for debugging
-  console.log(
-    "🔧 SUBMIT APPLICATION - Starting application submission process",
-  );
-  console.log("📊 Database Name:", mongoose.connection.name);
-  console.log("🔗 Database State:", mongoose.connection.readyState);
-  console.log("📝 Request Body Fields:", Object.keys(req.body));
-  console.log("📎 Uploaded File:", req.file ? req.file : "No file uploaded");
-
   try {
     // Validate required fields
     const requiredFields = [
-      "fullName",
+      "firstName",
+      "lastName",
       "email",
-      "phone",
-      "location",
-      "jobRole",
-      "experience",
+      "mobile",
+      "nationality",
+      "currentlyLocated",
+      "visaStatus",
     ];
 
     const missingFields = requiredFields.filter((field) => !req.body[field]);
     if (missingFields.length > 0) {
-      console.log(
-        "❌ Validation failed: Missing required fields:",
-        missingFields,
-      );
+      // Clean up uploaded file if validation fails
+      if (req.file?.path) {
+        try {
+          const fsPromises = (await import("fs")).promises;
+          await fsPromises.unlink(req.file.path);
+        } catch (e) {}
+      }
       return res.status(400).json({
         success: false,
-        error: "Validation Error",
-        message: `Missing required fields: ${missingFields.join(", ")}`,
+        message: "Please complete all required fields.",
+        errorCode: "VALIDATION_ERROR",
         fields: missingFields,
       });
     }
 
+    // Check CV file is attached
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "Please complete all required fields.",
+        errorCode: "VALIDATION_ERROR",
+        fields: ["attachedCv"],
+      });
+    }
+
     const {
-      fullName,
+      firstName,
+      lastName,
       email,
-      phone,
-      location,
+      mobile,
+      nationality,
+      currentlyLocated,
+      visaStatus,
+      // Optional legacy/extra fields
+      job,
       jobRole,
       experience,
       skills,
@@ -88,7 +96,6 @@ export const submitApplication = async (req, res) => {
       currentDesignation,
       expectedSalary,
       noticePeriod,
-      job,
       linkedinProfile,
       portfolio,
       github,
@@ -96,7 +103,6 @@ export const submitApplication = async (req, res) => {
       source,
       gender,
       dateOfBirth,
-      nationality,
       workAuthorization,
       languages,
       education,
@@ -108,60 +114,95 @@ export const submitApplication = async (req, res) => {
       salaryNegotiable,
       relocation,
       remoteWork,
-      captchaToken, // CAPTCHA token from frontend
     } = req.body;
 
-    // reCAPTCHA verification is now handled by middleware
-    // The reCAPTCHA data is available in req.recaptchaData if needed
-
-    // Process uploaded file if present
-    let resumeInfo = null;
-    if (req.file) {
-      try {
-        // Verify the file was saved correctly
-        const fs = await import("fs").then((mod) => mod.promises);
-        const fileStat = await fs.stat(req.file.path);
-
-        if (fileStat.size === 0) {
-          console.error("Uploaded file is empty:", req.file.path);
-          // Clean up the empty file
-          await fs.unlink(req.file.path);
-          throw new Error("Uploaded file is empty");
-        }
-
-        resumeInfo = {
-          filename: req.file.filename,
-          originalName: req.file.originalname,
-          mimetype: req.file.mimetype,
-          size: req.file.size,
-          path: req.file.path,
-        };
-
-        console.log("File uploaded successfully:", resumeInfo);
-      } catch (fileError) {
-        console.error("Error processing uploaded file:", fileError);
-        // Clean up the file if it exists
-        if (req.file?.path) {
-          try {
-            await fs.unlink(req.file.path);
-          } catch (cleanupError) {
-            console.error("Error cleaning up file:", cleanupError);
-          }
-        }
-
-        return res.status(400).json({
-          success: false,
-          error: "File Upload Error",
-          message: "Failed to process the uploaded file. Please try again.",
-          details:
-            process.env.NODE_ENV === "development"
-              ? fileError.message
-              : undefined,
-        });
+    // Validate email format
+    const emailRegex = /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/;
+    if (!emailRegex.test(email.trim())) {
+      if (req.file?.path) {
+        try {
+          const fsPromises = (await import("fs")).promises;
+          await fsPromises.unlink(req.file.path);
+        } catch (e) {}
       }
+      return res.status(400).json({
+        success: false,
+        message: "Please enter a valid email address.",
+        errorCode: "VALIDATION_ERROR",
+      });
     }
 
-    // Verify job exists (optional)
+    // Validate currentlyLocated enum
+    const validLocations = ["india", "dubai"];
+    if (!validLocations.includes(currentlyLocated)) {
+      if (req.file?.path) {
+        try {
+          const fsPromises = (await import("fs")).promises;
+          await fsPromises.unlink(req.file.path);
+        } catch (e) {}
+      }
+      return res.status(400).json({
+        success: false,
+        message:
+          "Invalid location. Currently located must be either 'india' or 'dubai'.",
+        errorCode: "VALIDATION_ERROR",
+      });
+    }
+
+    // Validate visaStatus enum
+    const validVisaStatuses = ["visitVisa", "residenceVisa", "spouseVisa"];
+    if (!validVisaStatuses.includes(visaStatus)) {
+      if (req.file?.path) {
+        try {
+          const fsPromises = (await import("fs")).promises;
+          await fsPromises.unlink(req.file.path);
+        } catch (e) {}
+      }
+      return res.status(400).json({
+        success: false,
+        message:
+          "Invalid visa status. Must be one of: visitVisa, residenceVisa, spouseVisa.",
+        errorCode: "VALIDATION_ERROR",
+      });
+    }
+
+    // Process uploaded CV file
+    let attachedCvInfo = null;
+    try {
+      const fsPromises = (await import("fs")).promises;
+      const fileStat = await fsPromises.stat(req.file.path);
+
+      if (fileStat.size === 0) {
+        await fsPromises.unlink(req.file.path);
+        throw new Error("Uploaded file is empty");
+      }
+
+      attachedCvInfo = {
+        filename: req.file.filename,
+        originalName: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size,
+        path: req.file.path,
+      };
+    } catch (fileError) {
+      console.error("Error processing uploaded file:", fileError);
+      if (req.file?.path) {
+        try {
+          const fsPromises = (await import("fs")).promises;
+          await fsPromises.unlink(req.file.path);
+        } catch (cleanupError) {
+          console.error("Error cleaning up file:", cleanupError);
+        }
+      }
+
+      return res.status(400).json({
+        success: false,
+        message: "Failed to process the uploaded file. Please try again.",
+        errorCode: "VALIDATION_ERROR",
+      });
+    }
+
+    // Verify job exists (if provided)
     let jobExists = null;
 
     if (job) {
@@ -176,8 +217,7 @@ export const submitApplication = async (req, res) => {
           }
           return res.status(400).json({
             success: false,
-            error: "Validation Error",
-            message: "The specified job does not exist",
+            message: "The specified job does not exist.",
             errorCode: "VALIDATION_ERROR",
           });
         }
@@ -197,8 +237,8 @@ export const submitApplication = async (req, res) => {
           }
           return res.status(409).json({
             success: false,
-            message: "You have already applied to this position.",
-            errorCode: "DUPLICATE_APPLICATION",
+            message: "You have already applied for this job.",
+            errorCode: "ALREADY_APPLIED",
           });
         }
       } catch (jobError) {
@@ -211,8 +251,7 @@ export const submitApplication = async (req, res) => {
         }
         return res.status(500).json({
           success: false,
-          error: "Server Error",
-          message: "Failed to verify job information",
+          message: "An unexpected error occurred. Please try again.",
           errorCode: "SERVER_ERROR",
         });
       }
@@ -224,19 +263,29 @@ export const submitApplication = async (req, res) => {
       try {
         return typeof field === "string" ? JSON.parse(field) : field;
       } catch (e) {
-        console.error(`Error parsing field: ${field}`, e);
         return [];
       }
     };
 
-    // Create application
+    // Create application data
     const applicationData = {
-      fullName: fullName.trim(),
+      // New required fields
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
       email: email.trim().toLowerCase(),
-      phone: phone.trim(),
-      location: location.trim(),
-      jobRole: jobRole.trim(),
-      experience: experience,
+      mobile: mobile.trim(),
+      nationality: nationality.trim(),
+      currentlyLocated: currentlyLocated,
+      visaStatus: visaStatus,
+      attachedCv: attachedCvInfo,
+      // Also store in legacy resume field for backward compatibility
+      resume: attachedCvInfo,
+      // Legacy/optional fields
+      fullName: `${firstName.trim()} ${lastName.trim()}`,
+      phone: mobile.trim(),
+      location: currentlyLocated,
+      jobRole: jobRole?.trim(),
+      experience: experience || undefined,
       skills: Array.isArray(skills) ? skills.join(", ") : skills || "",
       currentCompany: currentCompany?.trim(),
       currentDesignation: currentDesignation?.trim(),
@@ -254,7 +303,6 @@ export const submitApplication = async (req, res) => {
       source: (source || "website").trim(),
       gender: gender?.trim(),
       dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
-      nationality: nationality?.trim(),
       workAuthorization: workAuthorization?.trim(),
       languages: parseJsonField(languages),
       education: parseJsonField(education),
@@ -281,77 +329,24 @@ export const submitApplication = async (req, res) => {
             ? remoteWork === "true"
             : Boolean(remoteWork)
           : false,
-      resume: resumeInfo,
       ipAddress: req.ip,
       userAgent: req.get("User-Agent") || "",
-      status: "submitted", // Use 'submitted' instead of 'new'
+      status: "submitted",
     };
-
-    console.log("📋 Creating application with data:", {
-      ...applicationData,
-      resume: resumeInfo ? "[File info available]" : "No resume",
-    });
 
     const application = new Application(applicationData);
 
     // Save the application to the database
     try {
-      console.log("💾 Saving application to database...");
-      console.log("📊 Model:", application.constructor.modelName);
-      console.log("🗄️ Collection:", application.collection.name);
-
-      const startTime = Date.now();
       await application.save();
-      const saveTime = Date.now() - startTime;
-
-      console.log("✅ Application saved successfully!");
-      console.log("🆔 Application ID:", application._id);
-      console.log("⏱️ Save time:", saveTime, "ms");
-      console.log("📊 Collection:", application.constructor.modelName);
-      console.log("🗄️ Database:", mongoose.connection.name);
-      console.log("👤 Applicant:", application.fullName);
-      console.log("📧 Email:", application.email);
-
-      // Verify the application was actually saved by trying to retrieve it
-      console.log("🔍 Verifying application in database...");
-      const verifyApplication = await Application.findById(application._id);
-      if (verifyApplication) {
-        console.log(
-          "✅ Verification successful: Application found in database",
-        );
-        console.log("👤 Verified name:", verifyApplication.fullName);
-        console.log("📧 Verified email:", verifyApplication.email);
-      } else {
-        console.log(
-          "❌ Verification failed: Application not found in database after save",
-        );
-        console.log(
-          "🚨 CRITICAL: Save operation appeared successful but document not found!",
-        );
-      }
-
-      // Additional verification - count documents in collection
-      const applicationCount = await Application.countDocuments();
-      console.log(
-        "📊 Total applications in database after save:",
-        applicationCount,
-      );
-
-      console.log("🎉 Application submission process completed successfully");
     } catch (saveError) {
-      console.error("❌ Error saving application to database:", saveError);
-      console.error("🔍 Save Error Details:", {
-        name: saveError.name,
-        message: saveError.message,
-        code: saveError.code,
-        stack: saveError.stack,
-      });
+      console.error("Error saving application to database:", saveError);
 
       // Clean up uploaded file if saving to DB fails
-      if (resumeInfo?.path) {
+      if (attachedCvInfo?.path) {
         try {
-          const fs = await import("fs").then((mod) => mod.promises);
-          await fs.unlink(resumeInfo.path);
+          const fsPromises = (await import("fs")).promises;
+          await fsPromises.unlink(attachedCvInfo.path);
         } catch (cleanupError) {
           console.error(
             "Error cleaning up file after DB save error:",
@@ -364,28 +359,21 @@ export const submitApplication = async (req, res) => {
       if (saveError.code === 11000) {
         return res.status(409).json({
           success: false,
-          error: "Duplicate Application",
-          message: "You have already applied to this position.",
-          errorCode: "DUPLICATE_APPLICATION",
+          message: "You have already applied for this job.",
+          errorCode: "ALREADY_APPLIED",
         });
       }
 
       // Handle validation errors
       if (saveError.name === "ValidationError") {
-        const errors = Object.values(saveError.errors).map((err) => ({
-          field: err.path,
-          message: err.message,
-        }));
-
         return res.status(400).json({
           success: false,
-          error: "Validation Error",
-          message: "Please correct the following errors",
-          errors,
+          message: "Please complete all required fields.",
+          errorCode: "VALIDATION_ERROR",
         });
       }
 
-      throw saveError; // Let the catch block handle other errors
+      throw saveError;
     }
 
     try {
@@ -400,14 +388,13 @@ export const submitApplication = async (req, res) => {
       // Return success response
       return res.status(201).json({
         success: true,
-        message:
-          "Your application has been submitted successfully. We will review your profile and contact you soon.",
+        message: "Job application submitted successfully.",
         data: {
           application: {
             id: application._id,
-            fullName: application.fullName,
+            firstName: application.firstName,
+            lastName: application.lastName,
             email: application.email,
-            jobRole: application.jobRole,
             job: application.job,
             status: application.status,
             submittedAt: application.createdAt,
@@ -419,14 +406,13 @@ export const submitApplication = async (req, res) => {
       // Even if population fails, we still return success since the application was saved
       return res.status(201).json({
         success: true,
-        message:
-          "Your application has been submitted successfully. We will review your profile and contact you soon.",
+        message: "Job application submitted successfully.",
         data: {
           application: {
             id: application._id,
-            fullName: application.fullName,
+            firstName: application.firstName,
+            lastName: application.lastName,
             email: application.email,
-            jobRole: application.jobRole,
             status: application.status,
             submittedAt: application.createdAt,
           },
@@ -434,46 +420,13 @@ export const submitApplication = async (req, res) => {
       });
     }
   } catch (error) {
-    console.error("Error in submitApplication:", {
-      message: error.message,
-      stack: error.stack,
-      name: error.name,
-      code: error.code,
-      requestBody: req.body,
-      file: req.file
-        ? {
-            originalname: req.file.originalname,
-            mimetype: req.file.mimetype,
-            size: req.file.size,
-          }
-        : "No file uploaded",
-    });
+    console.error("Error in submitApplication:", error.message);
 
-    // Determine the appropriate status code
-    const statusCode = error.name === "ValidationError" ? 400 : 500;
-
-    // Prepare error response
-    const errorResponse = {
+    return res.status(500).json({
       success: false,
-      error: error.name || "Server Error",
-      message: error.message || "An unexpected error occurred",
-    };
-
-    // Add more details in development
-    if (process.env.NODE_ENV === "development") {
-      errorResponse.stack = error.stack;
-      if (error.errors) {
-        errorResponse.errors = Object.entries(error.errors).reduce(
-          (acc, [key, value]) => {
-            acc[key] = value.message;
-            return acc;
-          },
-          {},
-        );
-      }
-    }
-
-    return res.status(statusCode).json(errorResponse);
+      message: "An unexpected error occurred. Please try again.",
+      errorCode: "SERVER_ERROR",
+    });
   }
 };
 
@@ -561,8 +514,11 @@ export const getAllApplications = async (req, res) => {
     // Search filter (multiple fields)
     if (search) {
       filter.$or = [
+        { firstName: new RegExp(search, "i") },
+        { lastName: new RegExp(search, "i") },
         { fullName: new RegExp(search, "i") },
         { email: new RegExp(search, "i") },
+        { mobile: new RegExp(search, "i") },
         { phone: new RegExp(search, "i") },
         { jobRole: new RegExp(search, "i") },
         { skills: new RegExp(search, "i") },
@@ -1001,11 +957,15 @@ export const searchCandidates = async (req, res) => {
       filter.location = new RegExp(location, "i");
     }
 
-    // Search by keyword (searches in skills, fullName, email)
+    // Search by keyword (searches in skills, firstName, lastName, fullName, email)
 
     if (keyword) {
       filter.$or = [
         { skills: new RegExp(keyword, "i") },
+
+        { firstName: new RegExp(keyword, "i") },
+
+        { lastName: new RegExp(keyword, "i") },
 
         { fullName: new RegExp(keyword, "i") },
 

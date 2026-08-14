@@ -2,12 +2,18 @@ import mongoose from "mongoose";
 
 const applicationSchema = new mongoose.Schema(
   {
-    // Personal Information
-    fullName: {
+    // === New Required Fields (Apply Job Form) ===
+    firstName: {
       type: String,
-      required: [true, "Full name is required"],
+      required: [true, "First name is required"],
       trim: true,
-      maxlength: [100, "Full name cannot exceed 100 characters"],
+      maxlength: [100, "First name cannot exceed 100 characters"],
+    },
+    lastName: {
+      type: String,
+      required: [true, "Last name is required"],
+      trim: true,
+      maxlength: [100, "Last name cannot exceed 100 characters"],
     },
     email: {
       type: String,
@@ -19,29 +25,85 @@ const applicationSchema = new mongoose.Schema(
         "Please enter a valid email",
       ],
     },
+    mobile: {
+      type: String,
+      required: [true, "Mobile number is required"],
+      trim: true,
+      maxlength: [20, "Mobile number cannot exceed 20 characters"],
+    },
+    nationality: {
+      type: String,
+      required: [true, "Nationality is required"],
+      trim: true,
+      maxlength: [100, "Nationality cannot exceed 100 characters"],
+    },
+    currentlyLocated: {
+      type: String,
+      required: [true, "Current location is required"],
+      enum: {
+        values: ["india", "dubai"],
+        message: "Currently located must be either 'india' or 'dubai'",
+      },
+    },
+    visaStatus: {
+      type: String,
+      required: [true, "Visa status is required"],
+      enum: {
+        values: ["visitVisa", "residenceVisa", "spouseVisa"],
+        message:
+          "Visa status must be one of: visitVisa, residenceVisa, spouseVisa",
+      },
+    },
+
+    // Attached CV (required for new applications)
+    attachedCv: {
+      filename: {
+        type: String,
+        required: false,
+      },
+      originalName: {
+        type: String,
+        required: false,
+      },
+      mimetype: {
+        type: String,
+        required: false,
+      },
+      size: {
+        type: Number,
+        required: false,
+      },
+      path: {
+        type: String,
+        required: false,
+      },
+    },
+
+    // === Legacy Fields (kept optional for backward compatibility) ===
+    fullName: {
+      type: String,
+      trim: true,
+      maxlength: [100, "Full name cannot exceed 100 characters"],
+    },
     phone: {
       type: String,
-      required: [true, "Phone number is required"],
       trim: true,
       maxlength: [20, "Phone number cannot exceed 20 characters"],
     },
     location: {
       type: String,
-      required: [true, "Location is required"],
       trim: true,
       maxlength: [100, "Location cannot exceed 100 characters"],
     },
 
-    // Professional Information
+    // Professional Information (now optional)
     jobRole: {
       type: String,
-      required: [true, "Job role is required"],
       trim: true,
       maxlength: [100, "Job role cannot exceed 100 characters"],
     },
     experience: {
       type: String,
-      required: [true, "Experience level is required"],
       enum: [
         "fresher",
         "1-3",
@@ -104,7 +166,7 @@ const applicationSchema = new mongoose.Schema(
       required: false,
     },
 
-    // Resume Information (optional)
+    // Resume Information (legacy, kept for backward compatibility)
     resume: {
       filename: {
         type: String,
@@ -193,10 +255,6 @@ const applicationSchema = new mongoose.Schema(
     },
     dateOfBirth: {
       type: Date,
-    },
-    nationality: {
-      type: String,
-      maxlength: [100, "Nationality cannot exceed 100 characters"],
     },
     workAuthorization: {
       type: String,
@@ -355,6 +413,14 @@ const applicationSchema = new mongoose.Schema(
     toObject: { virtuals: true },
   },
 );
+
+// Virtual for full name (combines firstName + lastName for backward compatibility)
+applicationSchema.virtual("displayName").get(function () {
+  if (this.firstName && this.lastName) {
+    return `${this.firstName} ${this.lastName}`;
+  }
+  return this.fullName || "";
+});
 
 // Virtual for time since application
 applicationSchema.virtual("timeSinceApplication").get(function () {

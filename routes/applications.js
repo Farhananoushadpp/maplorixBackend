@@ -183,7 +183,7 @@ const handleMulterError = (err, req, res, next) => {
     if (err.code === "LIMIT_UNEXPECTED_FILE") {
       return res.status(400).json({
         error: "Unexpected file",
-        message: "File field name must be 'resume'",
+        message: "File field name must be 'attachedCv'",
       });
     }
 
@@ -213,139 +213,120 @@ const handleMulterError = (err, req, res, next) => {
 // POST /api/applications - Submit a new job application
 router.post(
   "/",
-  upload.single("resume"), // Handle file upload
+  upload.single("attachedCv"), // Handle CV file upload
   handleMulterError, // Handle multer errors
   [
-    body("fullName")
+    body("firstName")
       .notEmpty()
-      .withMessage("Full name is required")
+      .withMessage("First name is required")
       .isLength({ min: 2, max: 100 })
-      .withMessage("Full name must be between 2 and 100 characters"),
+      .withMessage("First name must be between 2 and 100 characters"),
+
+    body("lastName")
+      .notEmpty()
+      .withMessage("Last name is required")
+      .isLength({ min: 2, max: 100 })
+      .withMessage("Last name must be between 2 and 100 characters"),
 
     body("email")
       .isEmail()
-
       .withMessage("Please enter a valid email address")
-
       .normalizeEmail(),
 
-    body("phone")
+    body("mobile")
       .notEmpty()
-
-      .withMessage("Phone number is required")
-
+      .withMessage("Mobile number is required")
       .isLength({ min: 10, max: 20 })
+      .withMessage("Mobile number must be between 10 and 20 characters"),
 
-      .withMessage("Phone number must be between 10 and 20 characters"),
-
-    body("location")
+    body("nationality")
       .notEmpty()
-
-      .withMessage("Location is required")
-
+      .withMessage("Nationality is required")
       .isLength({ min: 2, max: 100 })
+      .withMessage("Nationality must be between 2 and 100 characters"),
 
-      .withMessage("Location must be between 2 and 100 characters"),
+    body("currentlyLocated")
+      .notEmpty()
+      .withMessage("Current location is required")
+      .isIn(["india", "dubai"])
+      .withMessage("Currently located must be either 'india' or 'dubai'"),
 
+    body("visaStatus")
+      .notEmpty()
+      .withMessage("Visa status is required")
+      .isIn(["visitVisa", "residenceVisa", "spouseVisa"])
+      .withMessage(
+        "Visa status must be one of: visitVisa, residenceVisa, spouseVisa",
+      ),
+
+    // Optional legacy/extra fields
     body("jobRole")
-      .notEmpty()
-
-      .withMessage("Job role is required")
-
+      .optional()
       .isLength({ min: 2, max: 100 })
-
       .withMessage("Job role must be between 2 and 100 characters"),
 
     body("experience")
+      .optional()
       .isIn([
         "fresher",
-
         "1-3",
-
         "3-5",
-
         "5+",
-
         "10+",
         "Entry Level",
-
         "Mid Level",
-
         "Senior Level",
-
         "Executive",
       ])
-
       .withMessage("Invalid experience level"),
 
     body("skills")
       .optional()
-
       .isLength({ max: 1000 })
-
       .withMessage("Skills cannot exceed 1000 characters"),
 
     body("currentCompany")
       .optional()
-
       .isLength({ max: 100 })
-
       .withMessage("Current company cannot exceed 100 characters"),
 
     body("currentDesignation")
       .optional()
-
       .isLength({ max: 100 })
-
       .withMessage("Current designation cannot exceed 100 characters"),
 
     body("expectedSalary.min")
       .optional()
-
       .isNumeric()
-
       .withMessage("Minimum expected salary must be a number"),
 
     body("expectedSalary.max")
       .optional()
-
       .isNumeric()
-
       .withMessage("Maximum expected salary must be a number"),
 
     body("expectedSalary.currency")
       .optional()
-
       .isIn(["USD", "EUR", "GBP", "CAD", "AUD", "INR", "AED"])
-
       .withMessage("Invalid currency"),
 
     body("noticePeriod")
       .optional()
-
       .isIn([
         "immediate",
-
         "15 days",
-
         "30 days",
-
         "60 days",
-
         "90 days",
-
         "negotiable",
       ])
-
       .withMessage("Invalid notice period"),
 
     body("job").optional().isMongoId().withMessage("Invalid job ID"),
 
     body("coverLetter")
       .optional()
-
       .isLength({ max: 5000 })
-
       .withMessage("Cover letter cannot exceed 5000 characters"),
 
     body("linkedinProfile")
@@ -374,115 +355,72 @@ router.post(
 
     body("source")
       .optional()
-
       .isIn([
         "website",
-
         "linkedin",
-
         "referral",
-
         "job-board",
-
         "social-media",
-
         "employee-referral",
-
         "campus-drive",
-
         "walk-in",
-
         "other",
       ])
       .withMessage("Invalid source"),
 
     body("gender")
       .optional()
-
       .isIn(["male", "female", "other", "prefer-not-to-say"])
-
       .withMessage("Invalid gender"),
 
     body("dateOfBirth")
       .optional()
-
       .isISO8601()
-
       .withMessage("Please enter a valid date of birth"),
-
-    body("nationality")
-      .optional()
-
-      .isLength({ max: 100 })
-
-      .withMessage("Nationality cannot exceed 100 characters"),
 
     body("workAuthorization")
       .optional()
-
       .isIn([
         "citizen",
-
         "permanent-resident",
-
         "work-permit",
-
         "student-visa",
-
         "tourist-visa",
-
         "other",
       ])
-
       .withMessage("Invalid work authorization"),
 
     body("availability")
       .optional()
-
       .isIn([
         "immediate",
-
         "1-week",
-
         "2-weeks",
-
         "1-month",
-
         "2-months",
-
         "3-months",
-
         "negotiable",
       ])
-
       .withMessage("Invalid availability"),
 
     body("expectedStartDate")
       .optional()
-
       .isISO8601()
-
       .withMessage("Please enter a valid expected start date"),
 
     body("salaryNegotiable")
       .optional()
-
       .isBoolean()
-
       .withMessage("Salary negotiable must be a boolean"),
 
     body("relocation")
       .optional()
-
       .isBoolean()
-
       .withMessage("Relocation must be a boolean"),
 
     body("remoteWork")
       .optional()
-
       .isBoolean()
-
       .withMessage("Remote work must be a boolean"),
   ],
 
