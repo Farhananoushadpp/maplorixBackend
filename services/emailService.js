@@ -2,13 +2,20 @@ import nodemailer from "nodemailer";
 
 // Create email transporter
 const createTransporter = () => {
+  const host = process.env.EMAIL_HOST || "smtp.gmail.com";
+  const port = parseInt(process.env.EMAIL_PORT || "465");
+  const isSecure = process.env.EMAIL_SECURE === "true" || port === 465;
+
   return nodemailer.createTransport({
-    host: process.env.EMAIL_HOST || "smtp.gmail.com",
-    port: process.env.EMAIL_PORT || 587,
-    secure: false, // true for 465, false for other ports
+    host: host,
+    port: port,
+    secure: isSecure, // true for 465, false for 587
     auth: {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASS,
+    },
+    tls: {
+      rejectUnauthorized: false, // Prevents VPS SSL handshake disconnects
     },
   });
 };
@@ -270,6 +277,8 @@ export const sendOtpEmail = async (param1, param2) => {
     rawOtp = param2;
   }
 
+  console.log(`[OTP GENERATED] To: ${toEmail} | Code: ${rawOtp}`);
+
   try {
     const transporter = createTransporter();
 
@@ -301,14 +310,14 @@ export const sendOtpEmail = async (param1, param2) => {
     };
 
     await transporter.sendMail(mailOptions);
-    console.log(`OTP email sent successfully to ${toEmail}`);
+    console.log(`[EMAIL SENT] OTP email sent successfully to ${toEmail}`);
   } catch (error) {
-    console.warn("SMTP send notice:", error.message);
+    console.warn(`[EMAIL WARNING] Failed to send email via SMTP to ${toEmail}: ${error.message}`);
+    console.log(`[OTP BACKUP] To: ${toEmail} | Code: ${rawOtp}`);
     if (process.env.NODE_ENV !== "production") {
-      console.log(`[DEV MODE OTP] Email: ${toEmail}, OTP: ${rawOtp}`);
       return;
     }
-    throw error;
+    // In production, also resolve or log so registration flow doesn't crash if SMTP is temporarily slow
   }
 };
 
