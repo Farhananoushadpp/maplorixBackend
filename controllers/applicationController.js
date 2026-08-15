@@ -41,39 +41,12 @@ const handleValidationErrors = (req, res, next) => {
 // Submit new job application
 export const submitApplication = async (req, res) => {
   try {
-    // Validate required fields
-    const requiredFields = [
-      "firstName",
-      "lastName",
-      "email",
-      "mobile",
-      "nationality",
-      "currentlyLocated",
-      "visaStatus",
-    ];
-
-    const missingFields = requiredFields.filter((field) => !req.body[field]);
-    if (missingFields.length > 0) {
-      // Clean up uploaded file if validation fails
-      if (req.file?.path) {
-        try {
-          const fsPromises = (await import("fs")).promises;
-          await fsPromises.unlink(req.file.path);
-        } catch (e) {}
-      }
-      return res.status(400).json({
-        success: false,
-        message: "Please complete all required fields.",
-        errorCode: "VALIDATION_ERROR",
-        fields: missingFields,
-      });
-    }
-
     const {
       firstName,
       lastName,
       email,
       mobile,
+      phone,
       nationality,
       currentlyLocated,
       visaStatus,
@@ -81,6 +54,7 @@ export const submitApplication = async (req, res) => {
       job,
       jobId,
       jobRole,
+      jobTitle,
       experience,
       skills,
       currentCompany,
@@ -110,15 +84,37 @@ export const submitApplication = async (req, res) => {
       resume: bodyResume,
     } = req.body;
 
+    // 1. Check strictly essential required fields
+    if (!email || !firstName) {
+      // Clean up uploaded file if validation fails
+      const uploadedFilePath = req.file?.path || req.files?.attachedCv?.[0]?.path || req.files?.resume?.[0]?.path;
+      if (uploadedFilePath) {
+        try {
+          const fsPromises = (await import("fs")).promises;
+          await fsPromises.unlink(uploadedFilePath);
+        } catch (e) {}
+      }
+      return res.status(400).json({
+        success: false,
+        message: "First name and email are required",
+        errorCode: "VALIDATION_ERROR",
+        fields: [!firstName ? "firstName" : "", !email ? "email" : ""].filter(Boolean),
+      });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanMobile = (mobile || phone || "").trim();
     const targetJob = job || jobId || null;
+    const finalJobRole = jobRole || jobTitle || "General Application";
 
     // Validate email format
     const emailRegex = /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/;
-    if (!emailRegex.test(email.trim())) {
-      if (req.file?.path) {
+    if (!emailRegex.test(cleanEmail)) {
+      const uploadedFilePath = req.file?.path || req.files?.attachedCv?.[0]?.path || req.files?.resume?.[0]?.path;
+      if (uploadedFilePath) {
         try {
           const fsPromises = (await import("fs")).promises;
-          await fsPromises.unlink(req.file.path);
+          await fsPromises.unlink(uploadedFilePath);
         } catch (e) {}
       }
       return res.status(400).json({
@@ -128,66 +124,37 @@ export const submitApplication = async (req, res) => {
       });
     }
 
-    // Validate currentlyLocated enum
-    const validLocations = ["india", "dubai"];
-    if (!validLocations.includes(currentlyLocated)) {
-      if (req.file?.path) {
-        try {
-          const fsPromises = (await import("fs")).promises;
-          await fsPromises.unlink(req.file.path);
-        } catch (e) {}
-      }
-      return res.status(400).json({
-        success: false,
-        message:
-          "Invalid location. Currently located must be either 'india' or 'dubai'.",
-        errorCode: "VALIDATION_ERROR",
-      });
-    }
-
-    // Validate visaStatus enum
-    const validVisaStatuses = ["visitVisa", "residenceVisa", "spouseVisa"];
-    if (!validVisaStatuses.includes(visaStatus)) {
-      if (req.file?.path) {
-        try {
-          const fsPromises = (await import("fs")).promises;
-          await fsPromises.unlink(req.file.path);
-        } catch (e) {}
-      }
-      return res.status(400).json({
-        success: false,
-        message:
-          "Invalid visa status. Must be one of: visitVisa, residenceVisa, spouseVisa.",
-        errorCode: "VALIDATION_ERROR",
-      });
-    }
-
-    // Process CV: Either from uploaded file (req.file) OR reused from user's profile/body
+    // Process CV: Either from uploaded file (req.file / req.files) OR reused from user's profile/body
     let attachedCvInfo = null;
+    const uploadedFile =
+      req.file ||
+      (req.files?.attachedCv && req.files.attachedCv[0]) ||
+      (req.files?.resume && req.files.resume[0]) ||
+      null;
 
-    if (req.file) {
+    if (uploadedFile) {
       try {
         const fsPromises = (await import("fs")).promises;
-        const fileStat = await fsPromises.stat(req.file.path);
+        const fileStat = await fsPromises.stat(uploadedFile.path);
 
         if (fileStat.size === 0) {
-          await fsPromises.unlink(req.file.path);
+          await fsPromises.unlink(uploadedFile.path);
           throw new Error("Uploaded file is empty");
         }
 
         attachedCvInfo = {
-          filename: req.file.filename,
-          originalName: req.file.originalname,
-          mimetype: req.file.mimetype,
-          size: req.file.size,
-          path: req.file.path,
+          filename: uploadedFile.filename,
+          originalName: uploadedFile.originalname,
+          mimetype: uploadedFile.mimetype,
+          size: uploadedFile.size,
+          path: uploadedFile.path,
         };
       } catch (fileError) {
         console.error("Error processing uploaded file:", fileError);
-        if (req.file?.path) {
+        if (uploadedFile?.path) {
           try {
             const fsPromises = (await import("fs")).promises;
-            await fsPromises.unlink(req.file.path);
+            await fsPromises.unlink(uploadedFile.path);
           } catch (cleanupError) {
             console.error("Error cleaning up file:", cleanupError);
           }
@@ -211,17 +178,20 @@ export const submitApplication = async (req, res) => {
         }
       }
 
-      const cvName = attachedCvName || (typeof rawCv === "string" && !parsedCv?.filename ? rawCv : null);
+      const cvName =
+        attachedCvName ||
+        (typeof rawCv === "string" && !parsedCv?.filename ? rawCv : null) ||
+        "Saved_CV.pdf";
 
       if (parsedCv && (parsedCv.filename || parsedCv.originalName || parsedCv.path)) {
         attachedCvInfo = {
-          filename: parsedCv.filename || cvName || "saved_resume.pdf",
-          originalName: parsedCv.originalName || cvName || "saved_resume.pdf",
+          filename: parsedCv.filename || cvName,
+          originalName: parsedCv.originalName || cvName,
           mimetype: parsedCv.mimetype || "application/pdf",
           size: parsedCv.size || 0,
           path: parsedCv.path || "",
         };
-      } else if (cvName) {
+      } else {
         attachedCvInfo = {
           filename: cvName,
           originalName: cvName,
@@ -232,18 +202,6 @@ export const submitApplication = async (req, res) => {
       }
     }
 
-    // Ensure we have a valid CV either from upload or profile
-    if (!attachedCvInfo) {
-      return res.status(400).json({
-        success: false,
-        message: "Please attach your CV or select a saved resume to proceed.",
-        errorCode: "VALIDATION_ERROR",
-        fields: ["attachedCv"],
-      });
-    }
-
-    const normalizedEmail = email.trim().toLowerCase();
-    const cleanMobile = mobile ? mobile.trim() : "";
     const digitsOnlyMobile = cleanMobile.replace(/\s+/g, "");
 
     // Prepare mobile lookup filters
@@ -260,10 +218,10 @@ export const submitApplication = async (req, res) => {
       try {
         const jobExists = await Job.findById(targetJob);
         if (!jobExists) {
-          if (req.file?.path) {
+          if (uploadedFile?.path) {
             try {
               const fsPromises = (await import("fs")).promises;
-              await fsPromises.unlink(req.file.path);
+              await fsPromises.unlink(uploadedFile.path);
             } catch (e) {}
           }
           return res.status(400).json({
@@ -277,7 +235,7 @@ export const submitApplication = async (req, res) => {
         const existingApplication = await Application.findOne({
           job: targetJob,
           $or: [
-            { email: normalizedEmail },
+            { email: cleanEmail },
             ...mobileFilters,
           ],
         });
@@ -300,7 +258,7 @@ export const submitApplication = async (req, res) => {
         if (req.file?.path) {
           try {
             const fsPromises = (await import("fs")).promises;
-            await fsPromises.unlink(req.file.path);
+            await fsPromises.unlink(uploadedFile.path);
           } catch (e) {}
         }
         return res.status(500).json({
@@ -313,8 +271,8 @@ export const submitApplication = async (req, res) => {
       // General application duplicate check (no specific job ID)
       try {
         const generalDuplicateConditions = [
-          { job: null, email: normalizedEmail },
-          { job: { $exists: false }, email: normalizedEmail },
+          { job: null, email: cleanEmail },
+          { job: { $exists: false }, email: cleanEmail },
         ];
 
         if (mobileFilters.length > 0) {
@@ -329,10 +287,10 @@ export const submitApplication = async (req, res) => {
         });
 
         if (existingGeneralApplication) {
-          if (req.file?.path) {
+          if (uploadedFile?.path) {
             try {
               const fsPromises = (await import("fs")).promises;
-              await fsPromises.unlink(req.file.path);
+              await fsPromises.unlink(uploadedFile.path);
             } catch (e) {}
           }
           return res.status(409).json({
@@ -358,22 +316,22 @@ export const submitApplication = async (req, res) => {
 
     // Create application data
     const applicationData = {
-      // New required fields
+      // Fields
       firstName: firstName.trim(),
-      lastName: lastName.trim(),
-      email: email.trim().toLowerCase(),
-      mobile: mobile.trim(),
-      nationality: nationality.trim(),
-      currentlyLocated: currentlyLocated,
-      visaStatus: visaStatus,
+      lastName: (lastName || "").trim(),
+      email: cleanEmail,
+      mobile: cleanMobile,
+      nationality: (nationality || "").trim(),
+      currentlyLocated: currentlyLocated || "",
+      visaStatus: visaStatus || "",
       attachedCv: attachedCvInfo,
-      // Also store in legacy resume field for backward compatibility
       resume: attachedCvInfo,
-      // Legacy/optional fields
-      fullName: `${firstName.trim()} ${lastName.trim()}`,
-      phone: mobile.trim(),
-      location: currentlyLocated,
-      jobRole: jobRole?.trim(),
+      fullName: `${firstName.trim()} ${(lastName || "").trim()}`.trim(),
+      phone: cleanMobile,
+      location: currentlyLocated || "",
+      jobRole: finalJobRole,
+      job: targetJob || null,
+      jobId: targetJob || "",
       experience: experience || undefined,
       skills: Array.isArray(skills) ? skills.join(", ") : skills || "",
       currentCompany: currentCompany?.trim(),
@@ -1131,4 +1089,5 @@ export const searchCandidates = async (req, res) => {
   }
 };
 
+export const createApplication = submitApplication;
 export { handleValidationErrors };

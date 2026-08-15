@@ -183,7 +183,7 @@ const handleMulterError = (err, req, res, next) => {
     if (err.code === "LIMIT_UNEXPECTED_FILE") {
       return res.status(400).json({
         error: "Unexpected file",
-        message: "File field name must be 'attachedCv'",
+        message: "File field name must be 'attachedCv' or 'resume'",
       });
     }
 
@@ -199,11 +199,6 @@ const handleMulterError = (err, req, res, next) => {
       error: "File upload failed",
       message: err.message || "Unknown file upload error. Please try again.",
       success: false,
-      error: "Upload failed",
-      message:
-        process.env.NODE_ENV === "development"
-          ? err.message
-          : "Failed to upload file",
     });
   }
 
@@ -213,20 +208,22 @@ const handleMulterError = (err, req, res, next) => {
 // POST /api/applications - Submit a new job application
 router.post(
   "/",
-  upload.single("attachedCv"), // Handle CV file upload
+  upload.fields([
+    { name: "attachedCv", maxCount: 1 },
+    { name: "resume", maxCount: 1 },
+  ]), // Handle CV / Resume file uploads
   handleMulterError, // Handle multer errors
   [
     body("firstName")
       .notEmpty()
       .withMessage("First name is required")
-      .isLength({ min: 2, max: 100 })
-      .withMessage("First name must be between 2 and 100 characters"),
+      .isLength({ min: 1, max: 100 })
+      .withMessage("First name must be between 1 and 100 characters"),
 
     body("lastName")
-      .notEmpty()
-      .withMessage("Last name is required")
-      .isLength({ min: 2, max: 100 })
-      .withMessage("Last name must be between 2 and 100 characters"),
+      .optional()
+      .isLength({ max: 100 })
+      .withMessage("Last name cannot exceed 100 characters"),
 
     body("email")
       .isEmail()
@@ -234,30 +231,22 @@ router.post(
       .normalizeEmail(),
 
     body("mobile")
-      .notEmpty()
-      .withMessage("Mobile number is required")
-      .isLength({ min: 10, max: 20 })
-      .withMessage("Mobile number must be between 10 and 20 characters"),
+      .optional()
+      .isLength({ max: 25 })
+      .withMessage("Mobile number cannot exceed 25 characters"),
 
     body("nationality")
-      .notEmpty()
-      .withMessage("Nationality is required")
-      .isLength({ min: 2, max: 100 })
-      .withMessage("Nationality must be between 2 and 100 characters"),
+      .optional()
+      .isLength({ max: 100 })
+      .withMessage("Nationality cannot exceed 100 characters"),
 
     body("currentlyLocated")
-      .notEmpty()
-      .withMessage("Current location is required")
-      .isIn(["india", "dubai"])
-      .withMessage("Currently located must be either 'india' or 'dubai'"),
+      .optional()
+      .isLength({ max: 100 }),
 
     body("visaStatus")
-      .notEmpty()
-      .withMessage("Visa status is required")
-      .isIn(["visitVisa", "residenceVisa", "spouseVisa"])
-      .withMessage(
-        "Visa status must be one of: visitVisa, residenceVisa, spouseVisa",
-      ),
+      .optional()
+      .isLength({ max: 100 }),
 
     // Optional legacy/extra fields
     body("jobRole")

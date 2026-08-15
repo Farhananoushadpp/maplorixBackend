@@ -11,9 +11,10 @@ const applicationSchema = new mongoose.Schema(
     },
     lastName: {
       type: String,
-      required: [true, "Last name is required"],
+      required: false,
       trim: true,
       maxlength: [100, "Last name cannot exceed 100 characters"],
+      default: "",
     },
     email: {
       type: String,
@@ -27,56 +28,37 @@ const applicationSchema = new mongoose.Schema(
     },
     mobile: {
       type: String,
-      required: [true, "Mobile number is required"],
+      required: false,
       trim: true,
       maxlength: [20, "Mobile number cannot exceed 20 characters"],
+      default: "",
     },
     nationality: {
       type: String,
-      required: [true, "Nationality is required"],
+      required: false,
       trim: true,
       maxlength: [100, "Nationality cannot exceed 100 characters"],
+      default: "",
     },
     currentlyLocated: {
       type: String,
-      required: [true, "Current location is required"],
-      enum: {
-        values: ["india", "dubai"],
-        message: "Currently located must be either 'india' or 'dubai'",
-      },
+      required: false,
+      default: "",
     },
     visaStatus: {
       type: String,
-      required: [true, "Visa status is required"],
-      enum: {
-        values: ["visitVisa", "residenceVisa", "spouseVisa"],
-        message:
-          "Visa status must be one of: visitVisa, residenceVisa, spouseVisa",
-      },
+      required: false,
+      default: "",
     },
 
-    // Attached CV (required for new applications)
+    // Attached CV (accepts string filename or object)
     attachedCv: {
-      filename: {
-        type: String,
-        required: false,
-      },
-      originalName: {
-        type: String,
-        required: false,
-      },
-      mimetype: {
-        type: String,
-        required: false,
-      },
-      size: {
-        type: Number,
-        required: false,
-      },
-      path: {
-        type: String,
-        required: false,
-      },
+      type: mongoose.Schema.Types.Mixed,
+      required: false,
+    },
+    jobId: {
+      type: String,
+      required: false,
     },
 
     // === Legacy Fields (kept optional for backward compatibility) ===
@@ -168,26 +150,8 @@ const applicationSchema = new mongoose.Schema(
 
     // Resume Information (legacy, kept for backward compatibility)
     resume: {
-      filename: {
-        type: String,
-        required: false,
-      },
-      originalName: {
-        type: String,
-        required: false,
-      },
-      mimetype: {
-        type: String,
-        required: false,
-      },
-      size: {
-        type: Number,
-        required: false,
-      },
-      path: {
-        type: String,
-        required: false,
-      },
+      type: mongoose.Schema.Types.Mixed,
+      required: false,
     },
 
     // Application Status
