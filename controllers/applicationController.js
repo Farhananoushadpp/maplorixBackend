@@ -69,16 +69,6 @@ export const submitApplication = async (req, res) => {
       });
     }
 
-    // Check CV file is attached
-    if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        message: "Please complete all required fields.",
-        errorCode: "VALIDATION_ERROR",
-        fields: ["attachedCv"],
-      });
-    }
-
     const {
       firstName,
       lastName,
@@ -89,6 +79,7 @@ export const submitApplication = async (req, res) => {
       visaStatus,
       // Optional legacy/extra fields
       job,
+      jobId,
       jobRole,
       experience,
       skills,
@@ -114,7 +105,12 @@ export const submitApplication = async (req, res) => {
       salaryNegotiable,
       relocation,
       remoteWork,
+      attachedCvName,
+      attachedCv: bodyAttachedCv,
+      resume: bodyResume,
     } = req.body;
+
+    const targetJob = job || jobId || null;
 
     // Validate email format
     const emailRegex = /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/;
@@ -166,39 +162,83 @@ export const submitApplication = async (req, res) => {
       });
     }
 
-    // Process uploaded CV file
+    // Process CV: Either from uploaded file (req.file) OR reused from user's profile/body
     let attachedCvInfo = null;
-    try {
-      const fsPromises = (await import("fs")).promises;
-      const fileStat = await fsPromises.stat(req.file.path);
 
-      if (fileStat.size === 0) {
-        await fsPromises.unlink(req.file.path);
-        throw new Error("Uploaded file is empty");
-      }
+    if (req.file) {
+      try {
+        const fsPromises = (await import("fs")).promises;
+        const fileStat = await fsPromises.stat(req.file.path);
 
-      attachedCvInfo = {
-        filename: req.file.filename,
-        originalName: req.file.originalname,
-        mimetype: req.file.mimetype,
-        size: req.file.size,
-        path: req.file.path,
-      };
-    } catch (fileError) {
-      console.error("Error processing uploaded file:", fileError);
-      if (req.file?.path) {
-        try {
-          const fsPromises = (await import("fs")).promises;
+        if (fileStat.size === 0) {
           await fsPromises.unlink(req.file.path);
-        } catch (cleanupError) {
-          console.error("Error cleaning up file:", cleanupError);
+          throw new Error("Uploaded file is empty");
+        }
+
+        attachedCvInfo = {
+          filename: req.file.filename,
+          originalName: req.file.originalname,
+          mimetype: req.file.mimetype,
+          size: req.file.size,
+          path: req.file.path,
+        };
+      } catch (fileError) {
+        console.error("Error processing uploaded file:", fileError);
+        if (req.file?.path) {
+          try {
+            const fsPromises = (await import("fs")).promises;
+            await fsPromises.unlink(req.file.path);
+          } catch (cleanupError) {
+            console.error("Error cleaning up file:", cleanupError);
+          }
+        }
+
+        return res.status(400).json({
+          success: false,
+          message: "Failed to process the uploaded file. Please try again.",
+          errorCode: "VALIDATION_ERROR",
+        });
+      }
+    } else {
+      // User is reusing a previously uploaded / saved CV (e.g. from their profile)
+      const rawCv = bodyAttachedCv || bodyResume;
+      let parsedCv = null;
+      if (rawCv) {
+        try {
+          parsedCv = typeof rawCv === "string" ? JSON.parse(rawCv) : rawCv;
+        } catch (e) {
+          parsedCv = typeof rawCv === "string" ? { originalName: rawCv, filename: rawCv } : rawCv;
         }
       }
 
+      const cvName = attachedCvName || (typeof rawCv === "string" && !parsedCv?.filename ? rawCv : null);
+
+      if (parsedCv && (parsedCv.filename || parsedCv.originalName || parsedCv.path)) {
+        attachedCvInfo = {
+          filename: parsedCv.filename || cvName || "saved_resume.pdf",
+          originalName: parsedCv.originalName || cvName || "saved_resume.pdf",
+          mimetype: parsedCv.mimetype || "application/pdf",
+          size: parsedCv.size || 0,
+          path: parsedCv.path || "",
+        };
+      } else if (cvName) {
+        attachedCvInfo = {
+          filename: cvName,
+          originalName: cvName,
+          mimetype: "application/pdf",
+          size: 0,
+          path: "",
+        };
+      }
+    }
+
+    // Ensure we have a valid CV either from upload or profile
+    if (!attachedCvInfo) {
       return res.status(400).json({
         success: false,
-        message: "Failed to process the uploaded file. Please try again.",
+        message: "Please attach your CV or select a saved resume to proceed.",
         errorCode: "VALIDATION_ERROR",
+        fields: ["attachedCv"],
       });
     }
 
@@ -215,10 +255,10 @@ export const submitApplication = async (req, res) => {
       mobileFilters.push({ mobile: digitsOnlyMobile }, { phone: digitsOnlyMobile });
     }
 
-    // Verify job exists (if provided) and check duplicates
-    if (job) {
+    // Verify job exists (if provided) and check duplicates specifically for this job
+    if (targetJob) {
       try {
-        const jobExists = await Job.findById(job);
+        const jobExists = await Job.findById(targetJob);
         if (!jobExists) {
           if (req.file?.path) {
             try {
@@ -233,9 +273,9 @@ export const submitApplication = async (req, res) => {
           });
         }
 
-        // Check if applicant already applied to this specific job by email or mobile
+        // Check if applicant already applied to THIS SPECIFIC job
         const existingApplication = await Application.findOne({
-          job: job,
+          job: targetJob,
           $or: [
             { email: normalizedEmail },
             ...mobileFilters,
@@ -344,7 +384,7 @@ export const submitApplication = async (req, res) => {
           : expectedSalary
         : {},
       noticePeriod: noticePeriod?.trim(),
-      job: job || null,
+      job: targetJob || null,
       linkedinProfile: linkedinProfile?.trim(),
       portfolio: portfolio?.trim(),
       github: github?.trim(),
