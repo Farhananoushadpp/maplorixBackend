@@ -79,10 +79,27 @@ const applicationSchema = new mongoose.Schema(
     },
 
     // Professional Information (now optional)
+    industry: {
+      type: String,
+      trim: true,
+      default: "",
+    },
     jobRole: {
       type: String,
       trim: true,
+      default: "General Application",
       maxlength: [100, "Job role cannot exceed 100 characters"],
+    },
+    jobTitle: {
+      type: String,
+      trim: true,
+      default: "General Application",
+      maxlength: [100, "Job title cannot exceed 100 characters"],
+    },
+    originalCvName: {
+      type: String,
+      trim: true,
+      default: "",
     },
     experience: {
       type: String,

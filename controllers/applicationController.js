@@ -327,9 +327,10 @@ export const submitApplication = async (req, res) => {
       attachedCv: attachedCvInfo,
       resume: attachedCvInfo,
       fullName: `${firstName.trim()} ${(lastName || "").trim()}`.trim(),
-      phone: cleanMobile,
-      location: currentlyLocated || "",
+      industry: industry || finalJobRole,
       jobRole: finalJobRole,
+      jobTitle: jobTitle || finalJobRole,
+      originalCvName: attachedCvInfo?.originalName || attachedCvInfo?.filename || attachedCvName || "",
       job: targetJob || null,
       jobId: targetJob || "",
       experience: experience || undefined,
@@ -342,7 +343,6 @@ export const submitApplication = async (req, res) => {
           : expectedSalary
         : {},
       noticePeriod: noticePeriod?.trim(),
-      job: targetJob || null,
       linkedinProfile: linkedinProfile?.trim(),
       portfolio: portfolio?.trim(),
       github: github?.trim(),
@@ -425,7 +425,9 @@ export const submitApplication = async (req, res) => {
 
     try {
       // Populate job information for response
-      await application.populate("job", "title company location type");
+      if (application.job) {
+        await application.populate("job", "title company location type");
+      }
 
       // Send confirmation email (async, don't wait for it)
       sendApplicationEmail(application).catch((emailError) => {
@@ -437,16 +439,9 @@ export const submitApplication = async (req, res) => {
         success: true,
         message: "Job application submitted successfully.",
         data: {
-          application: {
-            id: application._id,
-            firstName: application.firstName,
-            lastName: application.lastName,
-            email: application.email,
-            job: application.job,
-            status: application.status,
-            submittedAt: application.createdAt,
-          },
+          application,
         },
+        application,
       });
     } catch (populateError) {
       console.error("Error populating job data:", populateError);
@@ -455,15 +450,9 @@ export const submitApplication = async (req, res) => {
         success: true,
         message: "Job application submitted successfully.",
         data: {
-          application: {
-            id: application._id,
-            firstName: application.firstName,
-            lastName: application.lastName,
-            email: application.email,
-            status: application.status,
-            submittedAt: application.createdAt,
-          },
+          application,
         },
+        application,
       });
     }
   } catch (error) {
