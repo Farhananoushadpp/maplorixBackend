@@ -18,6 +18,7 @@ import applicationsRouter from "./routes/applications.js";
 import authRouter from "./routes/auth.js";
 import adminRouter from "./routes/admin.js";
 import pagesRouter from "./routes/pages.js";
+import candidateRoutes from "./routes/candidateRoutes.js";
 
 // Get current directory
 const __filename = fileURLToPath(import.meta.url);
@@ -173,6 +174,7 @@ app.use("/api/applications", applicationLimiter, applicationsRouter);
 app.use("/api/auth", authLimiter, authRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api/pages", pagesRouter);
+app.use("/api/candidates", candidateRoutes);
 
 // Test API endpoint
 app.get("/api/test", (req, res) => {
@@ -206,6 +208,7 @@ app.use("/api/*", (req, res) => {
       "/api/auth",
       "/api/admin",
       "/api/pages",
+      "/api/candidates",
       "/api/test",
       "/health",
     ],
