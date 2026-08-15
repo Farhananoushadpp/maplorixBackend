@@ -355,13 +355,15 @@ const connectDB = async () => {
     const dbName = mongoURI.split("/").pop().split("?")[0];
     console.log("🎯 Target Database Name:", dbName);
 
-    // Connect to MongoDB with connection pooling for concurrent users
+    // Connect to MongoDB with connection pooling for high concurrency
     const conn = await mongoose.connect(mongoURI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
       useCreateIndex: true,
       useFindAndModify: false,
-      poolSize: 100, // Connection pool size for Mongoose 5
+      maxPoolSize: 100, // Handle up to 100 concurrent DB operations
+      minPoolSize: 10,
+      poolSize: 100, // Backward compatibility for Mongoose 5
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
       connectTimeoutMS: 10000,

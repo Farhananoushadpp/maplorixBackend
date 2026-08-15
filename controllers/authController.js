@@ -35,67 +35,91 @@ const generateToken = (userId) => {
   });
 };
 
-// Send OTP to user's email
+// Send OTP to user's email (Check Duplicates & Send Email OTP)
 export const sendOtp = async (req, res) => {
   try {
-    const email = normalizeEmail(req.body.email);
-    const mobile = normalizeMobile(req.body.mobile || req.body.phone);
+    const { email, mobile, phone } = req.body;
 
     if (!email) {
       return res.status(400).json({
         success: false,
-        message: "Email is required.",
+        message: "Email is required",
         errorCode: "VALIDATION_ERROR",
       });
     }
 
-    // Check if user already exists by email or mobile
-    const existingUserFilter = [{ email }];
-    if (mobile) {
-      existingUserFilter.push({ mobile }, { phone: mobile });
-    }
+    const normalizedEmail = normalizeEmail(email);
+    const rawMobile = mobile || phone;
+    const cleanMobile = rawMobile ? normalizeMobile(rawMobile) : null;
 
-    const existingUser = await User.findOne({ $or: existingUserFilter });
-    if (existingUser) {
+    // 1. Check if user already exists with Email or Mobile
+    const existingEmail = await User.findOne({ email: normalizedEmail });
+    const existingMobile = cleanMobile
+      ? await User.findOne({ $or: [{ mobile: cleanMobile }, { phone: cleanMobile }] })
+      : null;
+
+    if (existingEmail && existingMobile) {
       return res.status(409).json({
         success: false,
-        message: "User already exists.",
         errorCode: "USER_ALREADY_EXISTS",
+        message: "Both this email and mobile number are already registered",
       });
     }
 
-    // Generate 6-digit numeric OTP
-    const rawOtp = crypto.randomInt(100000, 1000000).toString();
-    const otpHash = crypto.createHash("sha256").update(rawOtp).digest("hex");
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes TTL
+    if (existingEmail) {
+      return res.status(409).json({
+        success: false,
+        errorCode: "EMAIL_ALREADY_EXISTS",
+        message: "This email address is already registered",
+      });
+    }
 
-    // Remove any existing OTP for this email
-    await Otp.deleteMany({ email });
+    if (existingMobile) {
+      return res.status(409).json({
+        success: false,
+        errorCode: "MOBILE_ALREADY_EXISTS",
+        message: "This mobile number is already registered",
+      });
+    }
 
-    // Create new OTP document
-    const otpDoc = new Otp({
-      email,
-      mobile: mobile || "",
-      otpHash,
-      expiresAt,
-      attempts: 0,
-      isVerified: false,
+    // 2. Generate 6-digit numeric OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpHash = crypto.createHash("sha256").update(otp).digest("hex");
+    const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes expiry
+
+    // 3. Save OTP in DB / OTP collection
+    await Otp.findOneAndUpdate(
+      { email: normalizedEmail },
+      {
+        otp,
+        otpHash,
+        mobile: cleanMobile || "",
+        expiresAt: otpExpires,
+        attempts: 0,
+        isVerified: false,
+        verificationToken: null,
+      },
+      { upsert: true, new: true }
+    );
+
+    // 4. Send Email containing the OTP
+    await sendOtpEmail({
+      to: normalizedEmail,
+      subject: "Maplorix - Your Email Verification Code",
+      text: `Your verification code is ${otp}. It will expire in 10 minutes.`,
+      html: `<h2>Maplorix Verification Code</h2><p>Your 6-digit code is <b>${otp}</b>. It is valid for 10 minutes.</p>`,
+      otp,
     });
-
-    await otpDoc.save();
-
-    // Dispatch OTP via email (do NOT log or return raw OTP)
-    await sendOtpEmail(email, rawOtp);
 
     return res.status(200).json({
       success: true,
-      message: "OTP sent successfully to your email.",
+      message: "OTP sent successfully to your email",
     });
   } catch (error) {
-    console.error("Error sending OTP:", error);
+    console.error("Send OTP error:", error);
     return res.status(500).json({
       success: false,
-      message: "Failed to send OTP. Please try again.",
+      message: "Failed to send OTP",
       errorCode: "SERVER_ERROR",
     });
   }
@@ -104,65 +128,78 @@ export const sendOtp = async (req, res) => {
 // Verify OTP
 export const verifyOtp = async (req, res) => {
   try {
-    const email = normalizeEmail(req.body.email);
-    const rawOtp = req.body.otp ? String(req.body.otp).trim() : "";
+    const { email, otp } = req.body;
 
-    if (!email || !rawOtp) {
+    if (!email || !otp) {
       return res.status(400).json({
         success: false,
-        message: "Email and OTP are required.",
+        message: "Email and OTP are required",
         errorCode: "VALIDATION_ERROR",
       });
     }
 
-    const otpRecord = await Otp.findOne({ email });
+    const normalizedEmail = normalizeEmail(email);
+    const cleanOtp = String(otp).trim();
 
-    if (!otpRecord || otpRecord.isVerified || new Date() > otpRecord.expiresAt) {
+    const record = await Otp.findOne({ email: normalizedEmail });
+
+    if (!record) {
       return res.status(400).json({
         success: false,
-        message: "OTP has expired or is invalid.",
         errorCode: "INVALID_OTP",
+        message: "Invalid OTP code. Please check and try again.",
       });
     }
 
-    if (otpRecord.attempts >= 5) {
+    if (new Date() > new Date(record.expiresAt)) {
       return res.status(400).json({
         success: false,
-        message: "Maximum OTP attempts exceeded. Please request a new OTP.",
+        errorCode: "OTP_EXPIRED",
+        message: "OTP has expired. Please request a new one.",
+      });
+    }
+
+    if (record.attempts >= 5) {
+      return res.status(400).json({
+        success: false,
         errorCode: "MAX_OTP_ATTEMPTS_EXCEEDED",
+        message: "Maximum OTP attempts exceeded. Please request a new OTP.",
       });
     }
 
-    otpRecord.attempts += 1;
+    const providedHash = crypto.createHash("sha256").update(cleanOtp).digest("hex");
+    const isMatch =
+      (record.otp && record.otp === cleanOtp) ||
+      (record.otpHash && record.otpHash === providedHash);
 
-    const providedHash = crypto.createHash("sha256").update(rawOtp).digest("hex");
-    if (providedHash !== otpRecord.otpHash) {
-      await otpRecord.save();
+    if (!isMatch) {
+      record.attempts = (record.attempts || 0) + 1;
+      await record.save();
       return res.status(400).json({
         success: false,
-        message: "Invalid OTP.",
         errorCode: "INVALID_OTP",
+        message: "Invalid OTP code. Please check and try again.",
       });
     }
 
     // OTP is valid - mark verified and issue temporary token
     const verificationToken = crypto.randomBytes(32).toString("hex");
-    otpRecord.isVerified = true;
-    otpRecord.verificationToken = verificationToken;
-    await otpRecord.save();
+    record.isVerified = true;
+    record.verificationToken = verificationToken;
+    await record.save();
 
     return res.status(200).json({
       success: true,
-      message: "OTP verified successfully.",
+      message: "OTP verified successfully",
       data: {
         verificationToken,
       },
     });
   } catch (error) {
-    console.error("Error verifying OTP:", error);
+    console.error("Verify OTP error:", error);
     return res.status(500).json({
       success: false,
-      message: "Failed to verify OTP.",
+      message: "Failed to verify OTP",
       errorCode: "SERVER_ERROR",
     });
   }
@@ -186,7 +223,8 @@ export const register = async (req, res) => {
     } = req.body;
 
     const normalizedEmail = normalizeEmail(email);
-    const normalizedMobile = normalizeMobile(mobile || phone);
+    const rawMobile = mobile || phone;
+    const normalizedMobile = rawMobile ? normalizeMobile(rawMobile) : null;
 
     if (!normalizedEmail) {
       return res.status(400).json({
@@ -197,17 +235,32 @@ export const register = async (req, res) => {
     }
 
     // Check if user already exists by email or mobile
-    const existingUserFilter = [{ email: normalizedEmail }];
-    if (normalizedMobile) {
-      existingUserFilter.push({ mobile: normalizedMobile }, { phone: normalizedMobile });
-    }
+    const existingEmail = await User.findOne({ email: normalizedEmail });
+    const existingMobile = normalizedMobile
+      ? await User.findOne({ $or: [{ mobile: normalizedMobile }, { phone: normalizedMobile }] })
+      : null;
 
-    const existingUser = await User.findOne({ $or: existingUserFilter });
-    if (existingUser) {
+    if (existingEmail && existingMobile) {
       return res.status(409).json({
         success: false,
-        message: "User already exists.",
         errorCode: "USER_ALREADY_EXISTS",
+        message: "Both this email and mobile number are already registered",
+      });
+    }
+
+    if (existingEmail) {
+      return res.status(409).json({
+        success: false,
+        errorCode: "EMAIL_ALREADY_EXISTS",
+        message: "This email address is already registered",
+      });
+    }
+
+    if (existingMobile) {
+      return res.status(409).json({
+        success: false,
+        errorCode: "MOBILE_ALREADY_EXISTS",
+        message: "This mobile number is already registered",
       });
     }
 
@@ -283,10 +336,25 @@ export const register = async (req, res) => {
 
     // Handle MongoDB duplicate key error (code 11000)
     if (error.code === 11000) {
+      const field = Object.keys(error.keyPattern || {})[0] || "";
+      if (field === "email") {
+        return res.status(409).json({
+          success: false,
+          errorCode: "EMAIL_ALREADY_EXISTS",
+          message: "This email address is already registered",
+        });
+      }
+      if (field === "mobile" || field === "phone") {
+        return res.status(409).json({
+          success: false,
+          errorCode: "MOBILE_ALREADY_EXISTS",
+          message: "This mobile number is already registered",
+        });
+      }
       return res.status(409).json({
         success: false,
-        message: "User already exists.",
         errorCode: "USER_ALREADY_EXISTS",
+        message: "User already exists with this email or mobile",
       });
     }
 

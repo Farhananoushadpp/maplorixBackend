@@ -457,9 +457,12 @@ applicationSchema.virtual("formattedExpectedSalary").get(function () {
   return "Not specified";
 });
 
-// Index for better search performance
-applicationSchema.index({ email: 1, job: 1 }, { unique: true, sparse: true });
+// Index for instant duplicate check and better query performance
+applicationSchema.index({ email: 1, job: 1 });
+applicationSchema.index({ mobile: 1, job: 1 });
+applicationSchema.index({ createdAt: -1 });
 applicationSchema.index({ email: 1 });
+applicationSchema.index({ mobile: 1 });
 applicationSchema.index({ job: 1, status: 1 });
 applicationSchema.index({ status: 1, createdAt: -1 });
 applicationSchema.index({ priority: 1, status: 1 });

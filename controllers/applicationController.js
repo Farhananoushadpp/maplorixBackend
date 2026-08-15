@@ -202,12 +202,23 @@ export const submitApplication = async (req, res) => {
       });
     }
 
-    // Verify job exists (if provided)
-    let jobExists = null;
+    const normalizedEmail = email.trim().toLowerCase();
+    const cleanMobile = mobile ? mobile.trim() : "";
+    const digitsOnlyMobile = cleanMobile.replace(/\s+/g, "");
 
+    // Prepare mobile lookup filters
+    const mobileFilters = [];
+    if (cleanMobile) {
+      mobileFilters.push({ mobile: cleanMobile }, { phone: cleanMobile });
+    }
+    if (digitsOnlyMobile && digitsOnlyMobile !== cleanMobile) {
+      mobileFilters.push({ mobile: digitsOnlyMobile }, { phone: digitsOnlyMobile });
+    }
+
+    // Verify job exists (if provided) and check duplicates
     if (job) {
       try {
-        jobExists = await Job.findById(job);
+        const jobExists = await Job.findById(job);
         if (!jobExists) {
           if (req.file?.path) {
             try {
@@ -222,10 +233,13 @@ export const submitApplication = async (req, res) => {
           });
         }
 
-        // Check if applicant already applied to this specific job
+        // Check if applicant already applied to this specific job by email or mobile
         const existingApplication = await Application.findOne({
-          email: email.trim().toLowerCase(),
           job: job,
+          $or: [
+            { email: normalizedEmail },
+            ...mobileFilters,
+          ],
         });
 
         if (existingApplication) {
@@ -254,6 +268,41 @@ export const submitApplication = async (req, res) => {
           message: "An unexpected error occurred. Please try again.",
           errorCode: "SERVER_ERROR",
         });
+      }
+    } else {
+      // General application duplicate check (no specific job ID)
+      try {
+        const generalDuplicateConditions = [
+          { job: null, email: normalizedEmail },
+          { job: { $exists: false }, email: normalizedEmail },
+        ];
+
+        if (mobileFilters.length > 0) {
+          generalDuplicateConditions.push(
+            { job: null, $or: mobileFilters },
+            { job: { $exists: false }, $or: mobileFilters }
+          );
+        }
+
+        const existingGeneralApplication = await Application.findOne({
+          $or: generalDuplicateConditions,
+        });
+
+        if (existingGeneralApplication) {
+          if (req.file?.path) {
+            try {
+              const fsPromises = (await import("fs")).promises;
+              await fsPromises.unlink(req.file.path);
+            } catch (e) {}
+          }
+          return res.status(409).json({
+            success: false,
+            message: "You have already submitted an application with this email or mobile number.",
+            errorCode: "ALREADY_APPLIED",
+          });
+        }
+      } catch (checkError) {
+        console.error("Error checking general application duplicate:", checkError);
       }
     }
 

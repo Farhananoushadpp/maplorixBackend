@@ -13,9 +13,12 @@ const otpSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    otp: {
+      type: String,
+      trim: true,
+    },
     otpHash: {
       type: String,
-      required: true,
     },
     expiresAt: {
       type: Date,

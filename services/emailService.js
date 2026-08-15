@@ -252,15 +252,35 @@ export const sendInterviewEmail = async (application, interviewDetails) => {
 };
 
 // Send OTP verification email
-export const sendOtpEmail = async (email, otp) => {
+export const sendOtpEmail = async (param1, param2) => {
+  let toEmail;
+  let rawOtp;
+  let subject = "Maplorix Verification Code (OTP)";
+  let customHtml = null;
+  let customText = null;
+
+  if (typeof param1 === "object" && param1 !== null) {
+    toEmail = param1.to || param1.email;
+    rawOtp = param1.otp;
+    if (param1.subject) subject = param1.subject;
+    if (param1.html) customHtml = param1.html;
+    if (param1.text) customText = param1.text;
+  } else {
+    toEmail = param1;
+    rawOtp = param2;
+  }
+
   try {
     const transporter = createTransporter();
 
     const mailOptions = {
       from: process.env.EMAIL_FROM || process.env.EMAIL_USER || "noreply@maplorix.com",
-      to: email,
-      subject: "Maplorix Verification Code (OTP)",
-      html: `
+      to: toEmail,
+      subject: subject,
+      text: customText || `Your verification code is ${rawOtp}. It will expire in 10 minutes.`,
+      html:
+        customHtml ||
+        `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
           <div style="background: #023341; color: white; padding: 20px; text-align: center;">
             <h1 style="margin: 0; font-size: 24px;">Maplorix Verification Code</h1>
@@ -268,7 +288,7 @@ export const sendOtpEmail = async (email, otp) => {
           <div style="padding: 30px; background: #ffffff;">
             <p style="font-size: 16px; color: #333333;">Your verification code for registration is:</p>
             <div style="background: #f4f6f8; padding: 15px; text-align: center; border-radius: 6px; margin: 20px 0;">
-              <span style="font-size: 32px; font-weight: bold; letter-spacing: 6px; color: #4CBD99;">${otp}</span>
+              <span style="font-size: 32px; font-weight: bold; letter-spacing: 6px; color: #4CBD99;">${rawOtp}</span>
             </div>
             <p style="font-size: 14px; color: #666666;">This code is valid for 10 minutes. Do not share this code with anyone.</p>
             <p style="font-size: 14px; color: #666666;">If you did not request this code, please ignore this email.</p>
@@ -281,11 +301,11 @@ export const sendOtpEmail = async (email, otp) => {
     };
 
     await transporter.sendMail(mailOptions);
-    console.log(`OTP email sent successfully to ${email}`);
+    console.log(`OTP email sent successfully to ${toEmail}`);
   } catch (error) {
     console.warn("SMTP send notice:", error.message);
     if (process.env.NODE_ENV !== "production") {
-      console.log(`[DEV MODE OTP] Email: ${email}, OTP: ${otp}`);
+      console.log(`[DEV MODE OTP] Email: ${toEmail}, OTP: ${rawOtp}`);
       return;
     }
     throw error;
