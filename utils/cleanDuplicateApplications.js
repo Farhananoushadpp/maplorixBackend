@@ -9,7 +9,7 @@ async function deduplicateDatabase() {
     useNewUrlParser: true,
     useUnifiedTopology: true,
   });
-  
+
   const Application = mongoose.model(
     "Application",
     new mongoose.Schema({}, { strict: false })
