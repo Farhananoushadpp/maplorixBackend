@@ -267,26 +267,30 @@ export const sendOtpEmail = async (param1, param2) => {
   let customText = null;
 
   if (typeof param1 === "object" && param1 !== null) {
-    toEmail = param1.to || param1.email;
+    toEmail = (param1.to || param1.email || "").trim().toLowerCase();
     rawOtp = param1.otp;
     if (param1.subject) subject = param1.subject;
     if (param1.html) customHtml = param1.html;
     if (param1.text) customText = param1.text;
   } else {
-    toEmail = param1;
+    toEmail = (param1 || "").trim().toLowerCase();
     rawOtp = param2;
   }
 
-  console.log(`[OTP GENERATED] To: ${toEmail} | Code: ${rawOtp}`);
+  if (!toEmail) {
+    throw new Error("Recipient email address is required to send OTP");
+  }
+
+  console.log(`[OTP DISPATCH] Sending OTP code to registered email: ${toEmail}`);
 
   try {
     const transporter = createTransporter();
 
     const mailOptions = {
-      from: process.env.EMAIL_FROM || process.env.EMAIL_USER || "noreply@maplorix.com",
+      from: process.env.EMAIL_FROM || `"Maplorix HR" <${process.env.EMAIL_USER || "hr@maplorix.ae"}>`,
       to: toEmail,
       subject: subject,
-      text: customText || `Your verification code is ${rawOtp}. It will expire in 10 minutes.`,
+      text: customText || `Your Maplorix verification code is ${rawOtp}. It will expire in 10 minutes.`,
       html:
         customHtml ||
         `
@@ -309,15 +313,12 @@ export const sendOtpEmail = async (param1, param2) => {
       `,
     };
 
-    await transporter.sendMail(mailOptions);
-    console.log(`[EMAIL SENT] OTP email sent successfully to ${toEmail}`);
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`[EMAIL SENT] ✅ OTP email successfully delivered to ${toEmail} | Message ID: ${info.messageId}`);
+    return info;
   } catch (error) {
-    console.warn(`[EMAIL WARNING] Failed to send email via SMTP to ${toEmail}: ${error.message}`);
-    console.log(`[OTP BACKUP] To: ${toEmail} | Code: ${rawOtp}`);
-    if (process.env.NODE_ENV !== "production") {
-      return;
-    }
-    // In production, also resolve or log so registration flow doesn't crash if SMTP is temporarily slow
+    console.error(`[EMAIL ERROR] ❌ Failed to send OTP to ${toEmail}: ${error.message}`);
+    throw error;
   }
 };
 
