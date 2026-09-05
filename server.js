@@ -442,35 +442,13 @@ const startServer = async () => {
         ? await findAvailablePort(DEFAULT_PORT)
         : 4000;
 
-    // HTTPS options (self-signed) - only for production
-    let httpsOptions = null;
-    if (process.env.NODE_ENV === "production") {
-      try {
-        httpsOptions = {
-          key: fs.readFileSync("/etc/ssl/private/maplorix.key"),
-          cert: fs.readFileSync("/etc/ssl/certs/maplorix.crt"),
-        };
-      } catch (error) {
-        console.log("⚠️ SSL certificates not found, running HTTP only");
-      }
-    }
-    // Create HTTPS server (production only) or HTTP server (development)
-    if (httpsOptions && process.env.NODE_ENV === "production") {
-      https.createServer(httpsOptions, app).listen(port, "0.0.0.0", () => {
-        console.log(
-          `🔒 HTTPS Server running in ${process.env.NODE_ENV || "development"} mode on port ${port}`,
-        );
-        console.log(`API documentation available at https://localhost:${port}`);
-      });
-    } else {
-      // HTTP server for development
-      app.listen(port, "0.0.0.0", () => {
-        console.log(
-          `🌐 HTTP Server running in ${process.env.NODE_ENV || "development"} mode on port ${port}`,
-        );
-        console.log(`API documentation available at http://localhost:${port}`);
-      });
-    }
+    // Always run HTTP server on internal port (Nginx reverse proxy terminates SSL)
+    app.listen(port, "0.0.0.0", () => {
+      console.log(
+        `🌐 HTTP Server running in ${process.env.NODE_ENV || "development"} mode on port ${port}`,
+      );
+      console.log(`API documentation available at http://localhost:${port}`);
+    });
   } catch (error) {
     console.error("Failed to start server:", error);
     process.exit(1);
